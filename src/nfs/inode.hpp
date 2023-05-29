@@ -9,7 +9,15 @@ class Inode {
   uint32_t indirect1, indirect2;
 
 public:
+  Inode() {
+    // todo
+  }
+
   void read(char *buf, uint32_t offset, uint32_t size) {
+    // todo
+  }
+
+  std::optional<uint32_t> find(const std::string &name) {
     // todo
   }
 };

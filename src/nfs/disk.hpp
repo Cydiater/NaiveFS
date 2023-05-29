@@ -5,7 +5,8 @@
 #include "nfs/config.hpp"
 
 class Disk {
-  int fd_ = 0;
+  int fd_;
+  bool initialized_;
 
 public:
   Disk(const char *disk_path, const int gb) {
