@@ -2,6 +2,8 @@
 
 #include "nfs/config.hpp"
 
+#include <vector>
+
 class SegmentBuilder {
   char *buf_;
   uint32_t offset_;
@@ -17,6 +19,19 @@ public:
     }
     Disk::instance()->read(buf, offset, size);
   }
+
+  void push(const char *buf) {
+    // todo
+  }
+
+  void push(const Inode *inode) {
+    // todo
+  }
 };
 
-class SegmentsManager {};
+class SegmentsManager {
+public:
+  void push(const char *buf) {
+    // todo
+  }
+};
