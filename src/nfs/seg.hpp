@@ -28,7 +28,8 @@ public:
 
   void read(char *buf, uint32_t offset, uint32_t size) {
     if (offset >= offset_ && offset < offset_ + kSegmentSize) {
-      // do local read
+      assert(offset - offset_ + size <= kBlockSize);
+      std::memcpy(buf, buf_ + offset - offset_, size);
       return;
     }
     disk_->read(buf, offset, size);
@@ -38,10 +39,12 @@ public:
     // todo
   }
 
-  void push(const DiskInode *disk_inode) {
+  uint32_t push(const DiskInode *disk_inode) {
     auto inc = sizeof(DiskInode);
     std::memcpy(buf_ + offset_, disk_inode, inc);
-    offset_ += inc;
+    auto ret = offset_ + cursor_;
+    cursor_ += inc;
+    return ret;
   }
 };
 

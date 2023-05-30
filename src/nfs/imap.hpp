@@ -2,6 +2,7 @@
 
 #include "nfs/config.hpp"
 
+#include <optional>
 #include <vector>
 
 class Imap {
@@ -12,7 +13,7 @@ class Imap {
   // flushing imap to cr should ensure mutex against update
 
 public:
-  Imap(const char *from) {
+  Imap(char *from) : map_(reinterpret_cast<uint32_t *>(from)) {
     active_count = 0;
     for (int i = 0; i < kMaxInode; i++) {
       active_count += (map_[i] != 0);
@@ -21,7 +22,7 @@ public:
 
   uint32_t count() const { return active_count; }
 
-  uint32_t get(const uint32_t inode_idx) {
+  std::optional<uint32_t> get(const uint32_t inode_idx) {
     // todo
     return 0;
   }

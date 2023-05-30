@@ -6,8 +6,7 @@
 
 ;
 
-std::pair<std::vector<std::string>, std::string>
-parse_path_components(const char *) {
+std::vector<std::string> parse_path_components(const char *) {
   // todo
   return {};
 }
