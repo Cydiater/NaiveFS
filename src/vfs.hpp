@@ -30,16 +30,18 @@ inline uint32_t get_inode_idx(const char *path, fuse_file_info *fi) {
 }
 
 int fsync(const char *path, int datasync, struct fuse_file_info *fi) {
-  printf("fsync called\n");
+  // todo
   return 0;
 }
 
 int create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-  printf("create called\n");
+  // todo
+  return 0;
 }
 
 int open(const char *path, struct fuse_file_info *fi) {
-  printf("open called\n");
+  // todo
+  return 0;
 }
 
 int utimens(const char *path, const struct timespec tv[2],
@@ -63,7 +65,7 @@ int utimens(const char *path, const struct timespec tv[2],
 
 int write(const char *path, const char *buf, size_t size, off_t offset,
           struct fuse_file_info *fi) {
-  printf("write called\n");
+  // todo
   return 0;
 }
 
@@ -74,13 +76,13 @@ int access(const char *, int) {
 
 int read(const char *path, char *buf, size_t size, off_t offset,
          struct fuse_file_info *fi) {
-  printf("read called\n");
+  // todo
   return 0;
 }
 
 int readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
             fuse_file_info *fi, fuse_readdir_flags flags) {
-  printf("readdir called\n");
+  // todo
   return 0;
 }
 
