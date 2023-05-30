@@ -49,11 +49,9 @@ public:
       return fd;
     }
     auto this_disk_inode = DiskInode::make_file();
-    auto this_dinode_addr = seg_builder_->push(this_disk_inode.get());
+    std::ignore = seg_builder_->push(this_disk_inode.get());
     auto this_inode_idx = id_mgr_->allocate();
-    auto [nv_blocks, nv_parent_disk_inode] =
-        parent_inode->push(name, this_inode_idx);
-    seg_builder_->push(nv_blocks);
+    auto nv_parent_disk_inode = parent_inode->push(name, this_inode_idx);
     seg_builder_->push(nv_parent_disk_inode.get());
     auto fd = fd_mgr_->allocate(this_inode_idx);
     return fd;

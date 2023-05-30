@@ -26,7 +26,7 @@ public:
     offset_ = offset;
   }
 
-  void read(char *buf, uint32_t offset, uint32_t size) {
+  void read(char *buf, const uint32_t offset, const uint32_t size) {
     if (offset >= offset_ && offset < offset_ + kSegmentSize) {
       assert(offset - offset_ + size <= kBlockSize);
       std::memcpy(buf, buf_ + offset - offset_, size);

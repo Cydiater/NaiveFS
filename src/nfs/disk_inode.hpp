@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cassert>
 #include <cstring>
+#include <limits>
 #include <memory>
 
 #include <sys/stat.h>
@@ -30,7 +32,7 @@ struct DiskInode {
 
   static std::unique_ptr<DiskInode> make_file() {
     auto disk_inode = make();
-    disk_inode->mode = S_IFDIR;
+    disk_inode->mode = S_IFREG;
     return disk_inode;
   }
 
@@ -45,8 +47,14 @@ struct DiskInode {
     return 0;
   }
 
-  std::pair<uint32_t, uint32_t> translate(const uint32_t offset) {
-    // todo
-    return {};
+  std::tuple<uint32_t, uint32_t, uint32_t> translate(const uint32_t offset) {
+    constexpr uint32_t base1 = kBlockSize * kInodeDirectCnt;
+    constexpr uint32_t base2 = base1 + kBlockSize * (kBlockSize / 4);
+    if (offset < base1)
+      return {offset / kBlockSize, 0, 0};
+    if (offset < base2)
+      return {kInodeDirectCnt, (offset - base1) / kBlockSize, 0};
+    return {kInodeDirectCnt + 1, (offset - base2) / kBlockSize / kBlockSize,
+            ((offset - base2) / kBlockSize) % kBlockSize};
   }
 };
