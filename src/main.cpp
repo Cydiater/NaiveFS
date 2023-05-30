@@ -12,7 +12,14 @@ fuse_args fuse_init(int argc, char **argv) {
 fuse_operations bind_ops() {
   fuse_operations nfs_op = {
       .getattr = vfs::getattr,
+      .open = vfs::open,
+      .read = vfs::read,
+      .write = vfs::write,
+      .fsync = vfs::fsync,
       .readdir = vfs::readdir,
+      .access = vfs::access,
+      .create = vfs::create,
+      .utimens = vfs::utimens,
   };
   return nfs_op;
 }

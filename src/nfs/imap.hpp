@@ -15,7 +15,7 @@ class Imap {
 public:
   Imap(char *from) : map_(reinterpret_cast<uint32_t *>(from)) {
     active_count = 0;
-    for (int i = 0; i < kMaxInode; i++) {
+    for (uint32_t i = 0; i < kMaxInode; i++) {
       active_count += (map_[i] != 0);
     }
   }
