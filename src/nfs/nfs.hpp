@@ -13,17 +13,29 @@
 
 class NoEntry : public std::exception {
 public:
-  char *what() { return "No entry"; }
+  const char *what() { return "No entry"; }
 };
 
 class NaiveFS {
+  std::unique_ptr<Disk> disk_;
   std::unique_ptr<SegmentsManager> seg_mgr_;
   std::unique_ptr<SegmentBuilder> seg_builder_;
   std::unique_ptr<FDManager> fd_mgr_;
   std::unique_ptr<IDManager> id_mgr_;
+  std::unique_ptr<Imap> imap_;
 
 public:
-  NaiveFS() {}
+  NaiveFS()
+      : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
+        seg_builder_(std::make_unique<SegmentBuilder>(disk_.get())) {
+    char *buf = new char[kCRSize];
+    disk_->read(buf, 0, kCRSize);
+    imap_ = std::make_unique<Imap>(buf);
+    if (imap_->count() == 0) {
+      auto root_inode = DiskInode::make_dir();
+      seg_builder_->push(root_inode.get());
+    }
+  }
 
   void readdir() {
     // todo
@@ -33,10 +45,27 @@ public:
     // todo
   }
 
+  std::optional<DiskInode> getattr(const char *path, const uint32_t fd) {
+    auto found = getattr(fd);
+    if (found.has_value())
+      return found;
+    return getattr(path);
+  }
+
+  std::optional<DiskInode> getattr(const char *path) {
+    // todo
+    return std::nullopt;
+  }
+
+  std::optional<DiskInode> getattr(const uint32_t fd) {
+    // todo
+    return std::nullopt;
+  }
+
   std::optional<uint32_t> open(const char *path, const int flags) {
     auto inode_idx = id_mgr_->root_inode_idx;
     auto inode = get_inode(inode_idx);
-    const auto &[path_components, name] = parse_path_components(path);
+    auto [path_components, name] = parse_path_components(path);
     for (const auto &com : path_components) {
       auto found = inode->find(com);
       if (!found.has_value()) {
@@ -58,10 +87,12 @@ public:
 
 private:
   std::unique_ptr<Inode> get_inode(const uint32_t inode_idx) {
-    auto inode_addr = Imap::instance()->get(inode_idx);
-    auto inode = std::make_unique<Inode>();
-    seg_builder_->read(reinterpret_cast<char *>(inode.get()), inode_addr,
+    auto inode_addr = imap_->get(inode_idx);
+    auto disk_inode = std::make_unique<DiskInode>();
+    seg_builder_->read(reinterpret_cast<char *>(disk_inode.get()), inode_addr,
                        sizeof(Inode));
+    auto inode = std::make_unique<Inode>(std::move(disk_inode),
+                                         seg_builder_.get(), imap_.get());
     return inode;
   }
 };

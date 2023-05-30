@@ -10,5 +10,6 @@ class FDManager {
 public:
   uint32_t allocate(const uint32_t inode_idx) {
     // todo
+    return 0;
   }
 };

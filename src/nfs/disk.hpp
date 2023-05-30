@@ -13,11 +13,6 @@ public:
     // todo
   }
 
-  static Disk *instance() {
-    static Disk disk(kDiskPath, kDiskCapacityGB);
-    return &disk;
-  }
-
   void read(char *buf, uint32_t offset, uint32_t size) {
     // todo
   }
