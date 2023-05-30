@@ -35,8 +35,28 @@ public:
     }
   }
 
-  std::optional<uint32_t> open(const char *path, const int flags) {
-    // todo
+  uint32_t open(const char *path, const int flags) {
+    auto path_components = parse_path_components(path);
+    assert(path_components.size() >= 1);
+    auto name = path_components.back();
+    path_components.pop_back();
+    auto parent_inode_idx = get_inode_idx(path);
+    auto parent_inode = get_inode(parent_inode_idx);
+    auto maybe_this_inode_idx = parent_inode->find(name);
+    if (maybe_this_inode_idx.has_value()) {
+      auto this_inode_idx = maybe_this_inode_idx.value();
+      auto fd = fd_mgr_->allocate(this_inode_idx);
+      return fd;
+    }
+    auto this_disk_inode = DiskInode::make_file();
+    auto this_dinode_addr = seg_builder_->push(this_disk_inode.get());
+    auto this_inode_idx = id_mgr_->allocate();
+    auto [nv_blocks, nv_parent_disk_inode] =
+        parent_inode->push(name, this_inode_idx);
+    seg_builder_->push(nv_blocks);
+    seg_builder_->push(nv_parent_disk_inode.get());
+    auto fd = fd_mgr_->allocate(this_inode_idx);
+    return fd;
   }
 
   void readdir() {
@@ -70,10 +90,7 @@ public:
   }
 
   std::unique_ptr<DiskInode> get_diskinode(const uint32_t inode_idx) {
-    auto found = imap_->get(inode_idx);
-    if (found == std::nullopt)
-      return nullptr;
-    auto inode_addr = found.value();
+    auto inode_addr = imap_->get(inode_idx);
     auto disk_inode = std::make_unique<DiskInode>();
     seg_builder_->read(reinterpret_cast<char *>(disk_inode.get()), inode_addr,
                        sizeof(Inode));

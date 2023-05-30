@@ -1,7 +1,9 @@
 #pragma once
 
 #include "nfs/config.hpp"
+#include "nfs/utils.hpp"
 
+#include <cassert>
 #include <optional>
 #include <vector>
 
@@ -22,13 +24,17 @@ public:
 
   uint32_t count() const { return active_count; }
 
-  std::optional<uint32_t> get(const uint32_t inode_idx) {
-    // todo
-    return 0;
+  uint32_t get(const uint32_t inode_idx) {
+    assert(inode_idx < kMaxInode);
+    auto entry = map_[inode_idx];
+    if (entry == INVALID_VALUE)
+      throw NoImapEntry();
+    return entry;
   }
 
-  uint32_t update(const uint32_t inode_idx, const uint32_t inode_addr) {
-    // todo
-    return 0;
+  void update(const uint32_t inode_idx, const uint32_t inode_addr) {
+    assert(inode_idx < kMaxInode);
+    assert(inode_addr != INVALID_VALUE);
+    map_[inode_idx] = inode_addr;
   }
 };

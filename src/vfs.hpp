@@ -29,23 +29,22 @@ inline uint32_t get_inode_idx(const char *path, fuse_file_info *fi) {
   return nfs.get_inode_idx(path);
 }
 
-int fsync(const char *path, int datasync, struct fuse_file_info *fi) {
+inline int fsync(const char *path, int datasync, struct fuse_file_info *fi) {
   // todo
   return 0;
 }
 
-int create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+inline int open(const char *path, struct fuse_file_info *fi) {
   // todo
   return 0;
 }
 
-int open(const char *path, struct fuse_file_info *fi) {
-  // todo
-  return 0;
+inline int create(const char *path, mode_t, struct fuse_file_info *fi) {
+  return open(path, fi);
 }
 
-int utimens(const char *path, const struct timespec tv[2],
-            struct fuse_file_info *fi) {
+inline int utimens(const char *path, const struct timespec tv[2],
+                   struct fuse_file_info *fi) {
   try {
     auto inode_idx = get_inode_idx(path, fi);
     debug(std::string("utimens -> inode_idx = ") + std::to_string(inode_idx));
@@ -86,7 +85,7 @@ int readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
   return 0;
 }
 
-int getattr(const char *path, struct stat *stbuf, fuse_file_info *fi) {
+inline int getattr(const char *path, struct stat *stbuf, fuse_file_info *fi) {
   try {
     auto inode_idx = get_inode_idx(path, fi);
     auto disk_inode = nfs.get_diskinode(inode_idx);

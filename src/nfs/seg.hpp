@@ -16,7 +16,7 @@ class SegmentBuilder {
   Disk *disk_;
 
 public:
-  SegmentBuilder(Disk *disk) : disk_(disk), cursor_(kSegmentSize) {
+  SegmentBuilder(Disk *disk) : cursor_(kSegmentSize), disk_(disk) {
     buf_ = new char[kSegmentSize];
   }
   ~SegmentBuilder() { delete[] buf_; }
@@ -36,6 +36,10 @@ public:
   }
 
   void push(const char *) {
+    // todo
+  }
+
+  void push(const std::vector<char *> &) {
     // todo
   }
 

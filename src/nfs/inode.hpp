@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstring>
 #include <memory>
 #include <optional>
@@ -8,6 +9,7 @@
 #include "nfs/disk_inode.hpp"
 #include "nfs/imap.hpp"
 #include "nfs/seg.hpp"
+#include "nfs/utils.hpp"
 
 class Inode {
   std::unique_ptr<DiskInode> disk_inode_;
@@ -29,8 +31,27 @@ public:
     // todo
   }
 
-  std::optional<uint32_t> find(const std::string &name) {
+  std::pair<std::vector<char *>, std::unique_ptr<DiskInode>>
+  push(const std::string &name, const uint32_t inode_idx) {
     // todo
+  }
+
+  std::optional<uint32_t> find(const std::string &name) {
+    // assume that directory should not be very large here
+    // fix: support large directory
+    assert(disk_inode_->size <= kBlockSize * 3);
+    if (disk_inode_->size == 0)
+      return std::nullopt;
+    auto buf = new char[disk_inode_->size];
+    read(buf, 0, disk_inode_->size);
+    uint32_t offset = 0;
+    while (offset < disk_inode_->size) {
+      const auto [this_name, this_inode_idx] =
+          parse_one_dir_entry(buf, offset, disk_inode_->size);
+      if (this_name == name) {
+        return this_inode_idx;
+      }
+    }
     return std::nullopt;
   }
 };
