@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <asm-generic/errno-base.h>
 #include <cstdio>
 #include <exception>
 
@@ -84,19 +85,23 @@ int readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
 }
 
 int getattr(const char *path, struct stat *stbuf, fuse_file_info *fi) {
-  auto inode_idx = get_inode_idx(path, fi);
-  auto disk_inode = nfs.get_diskinode(inode_idx);
-  stbuf->st_mode = disk_inode->mode;
-  stbuf->st_atime = disk_inode->access_time;
-  stbuf->st_mtime = disk_inode->modify_time;
-  stbuf->st_ctime = disk_inode->change_time;
-  stbuf->st_size = disk_inode->size;
-  stbuf->st_mode = disk_inode->mode;
-  stbuf->st_nlink = disk_inode->link_cnt;
-  stbuf->st_uid = disk_inode->uid;
-  stbuf->st_gid = disk_inode->gid;
-  stbuf->st_blocks = disk_inode->st_blocks();
-  stbuf->st_blksize = kBlockSize;
+  try {
+    auto inode_idx = get_inode_idx(path, fi);
+    auto disk_inode = nfs.get_diskinode(inode_idx);
+    stbuf->st_mode = disk_inode->mode;
+    stbuf->st_atime = disk_inode->access_time;
+    stbuf->st_mtime = disk_inode->modify_time;
+    stbuf->st_ctime = disk_inode->change_time;
+    stbuf->st_size = disk_inode->size;
+    stbuf->st_mode = disk_inode->mode;
+    stbuf->st_nlink = disk_inode->link_cnt;
+    stbuf->st_uid = disk_inode->uid;
+    stbuf->st_gid = disk_inode->gid;
+    stbuf->st_blocks = disk_inode->st_blocks();
+    stbuf->st_blksize = kBlockSize;
+  } catch (NoEntry &e) {
+    return -ENOENT;
+  }
   return 0;
 }
 
