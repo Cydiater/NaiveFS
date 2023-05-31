@@ -77,9 +77,12 @@ int read(const char *path, char *buf, size_t size, off_t offset,
   return 0;
 }
 
-int readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
-            fuse_file_info *fi, fuse_readdir_flags flags) {
+inline int readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t,
+                   fuse_file_info *, fuse_readdir_flags) {
   auto names = nfs.readdir(path);
+  for (auto &name : names) {
+    filler(buf, name.c_str(), nullptr, 0, (fuse_fill_dir_flags)0);
+  }
   return 0;
 }
 

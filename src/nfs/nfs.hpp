@@ -65,8 +65,11 @@ public:
     return fd;
   }
 
-  void readdir(const char *path) {
-    // todo
+  std::vector<std::string> readdir(const char *path) {
+    auto inode_idx = get_inode_idx(path);
+    auto inode = get_inode(inode_idx);
+    auto names = inode->readdir();
+    return names;
   }
 
   void read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {

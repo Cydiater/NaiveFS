@@ -44,6 +44,7 @@ public:
     std::memcpy(buf_ + offset_, this_buf, kBlockSize);
     auto ret = cursor_ + offset_;
     offset_ += kBlockSize;
+    assert(offset_ < kSegmentSize);
     return ret;
   }
 
@@ -52,6 +53,7 @@ public:
     std::memcpy(buf_ + offset_, disk_inode, inc);
     auto ret = cursor_ + offset_;
     offset_ += inc;
+    assert(offset_ < kSegmentSize);
     return ret;
   }
 };

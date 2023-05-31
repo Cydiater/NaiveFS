@@ -32,9 +32,8 @@ make_one_dir_entry(const std::string &name, const uint32_t inode_idx) {
   return {buf, 4 + len + 4};
 }
 
-inline std::pair<std::string, uint32_t>
-parse_one_dir_entry(const char *buf, uint32_t &offset, const uint32_t size) {
-  assert(offset < size);
+inline std::pair<std::string, uint32_t> parse_one_dir_entry(const char *buf,
+                                                            uint32_t &offset) {
   uint32_t len = 0, inode_idx = 0;
   std::memcpy(&len, buf + offset, 4);
   assert(len < 256);
