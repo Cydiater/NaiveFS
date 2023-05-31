@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 
+#include "nfs/config.hpp"
 #include "nfs/disk.hpp"
 #include "nfs/disk_inode.hpp"
 #include "nfs/fd.hpp"
@@ -24,7 +25,9 @@ class NaiveFS {
 public:
   NaiveFS()
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
-        seg_builder_(std::make_unique<SegmentBuilder>(disk_.get())) {
+        seg_builder_(std::make_unique<SegmentBuilder>(disk_.get())),
+        fd_mgr_(std::make_unique<FDManager>()),
+        id_mgr_(std::make_unique<IDManager>()) {
     char *buf = new char[kCRSize];
     disk_->read(buf, 0, kCRSize);
     imap_ = std::make_unique<Imap>(buf);
@@ -40,19 +43,24 @@ public:
     assert(path_components.size() >= 1);
     auto name = path_components.back();
     path_components.pop_back();
-    auto parent_inode_idx = get_inode_idx(path);
+    auto parent_path = join_path_components(path_components);
+    auto parent_inode_idx = get_inode_idx(parent_path.c_str());
     auto parent_inode = get_inode(parent_inode_idx);
     auto maybe_this_inode_idx = parent_inode->find(name);
     if (maybe_this_inode_idx.has_value()) {
       auto this_inode_idx = maybe_this_inode_idx.value();
+      debug("open maybe_this_inode_idx = " + std::to_string(this_inode_idx));
       auto fd = fd_mgr_->allocate(this_inode_idx);
       return fd;
     }
     auto this_disk_inode = DiskInode::make_file();
-    std::ignore = seg_builder_->push(this_disk_inode.get());
+    auto this_dinode_addr = seg_builder_->push(this_disk_inode.get());
     auto this_inode_idx = id_mgr_->allocate();
+    imap_->update(this_inode_idx, this_dinode_addr);
+    debug("open this_inode_idx = " + std::to_string(this_inode_idx));
     auto nv_parent_disk_inode = parent_inode->push(name, this_inode_idx);
-    seg_builder_->push(nv_parent_disk_inode.get());
+    auto nv_parent_dinode_addr = seg_builder_->push(nv_parent_disk_inode.get());
+    imap_->update(parent_inode_idx, nv_parent_dinode_addr);
     auto fd = fd_mgr_->allocate(this_inode_idx);
     return fd;
   }
@@ -81,9 +89,12 @@ public:
         throw NoEntry();
       }
       inode_idx = found.value();
+      debug("get_inode_idx found " + com + " -> " + std::to_string(inode_idx));
       inode = get_inode(inode_idx);
       assert(inode != nullptr);
     }
+    debug("get inode index " + std::string(path) + " -> " +
+          std::to_string(inode_idx));
     return inode_idx;
   }
 
@@ -91,7 +102,7 @@ public:
     auto inode_addr = imap_->get(inode_idx);
     auto disk_inode = std::make_unique<DiskInode>();
     seg_builder_->read(reinterpret_cast<char *>(disk_inode.get()), inode_addr,
-                       sizeof(Inode));
+                       sizeof(DiskInode));
     return disk_inode;
   }
 
@@ -100,8 +111,8 @@ private:
     auto disk_inode = get_diskinode(inode_idx);
     if (disk_inode == nullptr)
       return nullptr;
-    auto inode = std::make_unique<Inode>(std::move(disk_inode),
-                                         seg_builder_.get(), imap_.get());
+    auto inode =
+        std::make_unique<Inode>(std::move(disk_inode), seg_builder_.get());
     return inode;
   }
 };

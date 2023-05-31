@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <map>
 #include <optional>
@@ -9,11 +10,15 @@
 
 class FDManager {
   std::map<uint32_t, uint32_t> fd2id;
+  std::atomic<uint32_t> cnt_;
 
 public:
-  uint32_t allocate(const uint32_t) {
-    // todo
-    return 0;
+  FDManager() : cnt_{2} {}
+
+  uint32_t allocate(const uint32_t inode_idx) {
+    auto fd = ++cnt_;
+    fd2id[fd] = inode_idx;
+    return fd;
   }
 
   uint32_t get(const uint32_t fd) {

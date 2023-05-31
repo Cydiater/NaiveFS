@@ -7,6 +7,7 @@
 #include <exception>
 
 #include "fuse3/fuse.h"
+#include "nfs/disk.hpp"
 #include "nfs/utils.hpp"
 #include "unistd.h"
 
@@ -19,12 +20,8 @@ namespace vfs {
 static NaiveFS nfs;
 
 inline uint32_t get_inode_idx(const char *path, fuse_file_info *fi) {
-  if (fi != nullptr) {
-    try {
-      return nfs.get_inode_idx(fi->fh);
-    } catch (const NoFd &e) {
-      // continue to query by path
-    }
+  if (fi != nullptr && fi->fh != 0) {
+    return nfs.get_inode_idx(fi->fh);
   }
   return nfs.get_inode_idx(path);
 }
@@ -35,7 +32,8 @@ inline int fsync(const char *path, int datasync, struct fuse_file_info *fi) {
 }
 
 inline int open(const char *path, struct fuse_file_info *fi) {
-  // todo
+  auto fd = nfs.open(path, fi->flags);
+  fi->fh = fd;
   return 0;
 }
 

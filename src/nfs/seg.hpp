@@ -8,6 +8,7 @@
 #include "nfs/config.hpp"
 #include "nfs/disk.hpp"
 #include "nfs/disk_inode.hpp"
+#include "nfs/utils.hpp"
 
 class SegmentBuilder {
   char *buf_;
@@ -16,34 +17,41 @@ class SegmentBuilder {
   Disk *disk_;
 
 public:
-  SegmentBuilder(Disk *disk) : cursor_(kSegmentSize), disk_(disk) {
+  SegmentBuilder(Disk *disk) : cursor_(kCRSize), disk_(disk) {
     buf_ = new char[kSegmentSize];
   }
   ~SegmentBuilder() { delete[] buf_; }
 
-  void seek(const uint32_t offset) {
-    assert(cursor_ == kSummarySize);
-    offset_ = offset;
+  void seek(const uint32_t cursor) {
+    assert(offset_ == kSummarySize);
+    cursor_ = cursor;
   }
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
-    if (offset >= offset_ && offset < offset_ + kSegmentSize) {
-      assert(offset - offset_ + size <= kBlockSize);
-      std::memcpy(buf, buf_ + offset - offset_, size);
+    if (offset >= cursor_ && offset < cursor_ + kSegmentSize) {
+      debug("local read offset =  " + std::to_string(offset) +
+            " size = " + std::to_string(size));
+      assert(offset - cursor_ + size <= kSegmentSize);
+      std::memcpy(buf, buf_ + offset - cursor_, size);
       return;
     }
+    debug("disk read offset =  " + std::to_string(offset) +
+          " size = " + std::to_string(size));
     disk_->read(buf, offset, size);
   }
 
-  uint32_t push(const char *) {
-    // todo
+  uint32_t push(const char *this_buf) {
+    std::memcpy(buf_ + offset_, this_buf, kBlockSize);
+    auto ret = cursor_ + offset_;
+    offset_ += kBlockSize;
+    return ret;
   }
 
   uint32_t push(const DiskInode *disk_inode) {
     auto inc = sizeof(DiskInode);
     std::memcpy(buf_ + offset_, disk_inode, inc);
-    auto ret = offset_ + cursor_;
-    cursor_ += inc;
+    auto ret = cursor_ + offset_;
+    offset_ += inc;
     return ret;
   }
 };

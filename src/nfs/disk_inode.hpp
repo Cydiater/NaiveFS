@@ -47,7 +47,8 @@ struct DiskInode {
     return 0;
   }
 
-  std::tuple<uint32_t, uint32_t, uint32_t> translate(const uint32_t offset) {
+  static std::tuple<uint32_t, uint32_t, uint32_t>
+  translate(const uint32_t offset) {
     constexpr uint32_t base1 = kBlockSize * kInodeDirectCnt;
     constexpr uint32_t base2 = base1 + kBlockSize * (kBlockSize / 4);
     if (offset < base1)
