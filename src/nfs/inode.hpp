@@ -134,6 +134,10 @@ public:
     return write(buf, disk_inode_->size, len);
   }
 
+  std::vector<std::string> readdir() {
+    // todo
+  }
+
   std::optional<uint32_t> find(const std::string &name) {
     // assume that directory should not be very large here
     // fix: support large directory

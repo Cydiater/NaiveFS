@@ -79,7 +79,7 @@ int read(const char *path, char *buf, size_t size, off_t offset,
 
 int readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset,
             fuse_file_info *fi, fuse_readdir_flags flags) {
-  // todo
+  auto names = nfs.readdir(path);
   return 0;
 }
 

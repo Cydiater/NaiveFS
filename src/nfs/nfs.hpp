@@ -65,7 +65,7 @@ public:
     return fd;
   }
 
-  void readdir() {
+  void readdir(const char *path) {
     // todo
   }
 
