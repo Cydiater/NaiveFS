@@ -96,6 +96,10 @@ public:
     for_each_block(offset, size,
                    [&buf, this](const uint32_t addr, const uint32_t this_offset,
                                 const uint32_t this_size) {
+                     debug(
+                         "write for each block addr = " + std::to_string(addr) +
+                         " this_offset = " + std::to_string(this_offset) +
+                         " this_size = " + std::to_string(this_size));
                      if (this_size == kBlockSize) {
                        assert(this_offset == 0);
                        auto new_addr = seg_->push(buf);
@@ -103,7 +107,7 @@ public:
                      }
                      auto this_buf = new char[kBlockSize];
                      seg_->read(this_buf, addr, kBlockSize);
-                     std::memcpy(this_buf, buf + this_offset, this_size);
+                     std::memcpy(this_buf + this_offset, buf, this_size);
                      auto new_addr = seg_->push(this_buf);
                      delete[] this_buf;
                      buf += this_size;
@@ -129,9 +133,25 @@ public:
 
   std::unique_ptr<DiskInode> push(const std::string &name,
                                   const uint32_t inode_idx) {
-    debug("inode dir push entry " + name + " -> " + std::to_string(inode_idx));
+    debug("inode dir push entry size =  " + std::to_string(disk_inode_->size) +
+          " " + name + " -> " + std::to_string(inode_idx));
     auto [buf, len] = make_one_dir_entry(name, inode_idx);
     return write(buf, disk_inode_->size, len);
+  }
+
+  std::vector<std::string> readdir() {
+    assert(disk_inode_->size <= kBlockSize * 3);
+    std::vector<std::string> names;
+    if (disk_inode_->size == 0)
+      return names;
+    auto buf = new char[disk_inode_->size];
+    read(buf, 0, disk_inode_->size);
+    uint32_t offset = 0;
+    while (offset < disk_inode_->size) {
+      const auto [this_name, this_inode_idx] = parse_one_dir_entry(buf, offset);
+      names.push_back(this_name);
+    }
+    return names;
   }
 
   std::optional<uint32_t> find(const std::string &name) {
@@ -145,8 +165,7 @@ public:
     read(buf, 0, disk_inode_->size);
     uint32_t offset = 0;
     while (offset < disk_inode_->size) {
-      const auto [this_name, this_inode_idx] =
-          parse_one_dir_entry(buf, offset, disk_inode_->size);
+      const auto [this_name, this_inode_idx] = parse_one_dir_entry(buf, offset);
       debug("inode dir find name =  " + name + " this_name " + this_name +
             " -> " + std::to_string(this_inode_idx));
       if (this_name == name) {

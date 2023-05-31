@@ -29,7 +29,7 @@ public:
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
     if (offset >= cursor_ && offset < cursor_ + kSegmentSize) {
-      debug("local read offset =  " + std::to_string(offset) +
+      debug("local read offset = " + std::to_string(offset) +
             " size = " + std::to_string(size));
       assert(offset - cursor_ + size <= kSegmentSize);
       std::memcpy(buf, buf_ + offset - cursor_, size);
@@ -44,6 +44,7 @@ public:
     std::memcpy(buf_ + offset_, this_buf, kBlockSize);
     auto ret = cursor_ + offset_;
     offset_ += kBlockSize;
+    assert(offset_ < kSegmentSize);
     return ret;
   }
 
@@ -52,6 +53,7 @@ public:
     std::memcpy(buf_ + offset_, disk_inode, inc);
     auto ret = cursor_ + offset_;
     offset_ += inc;
+    assert(offset_ < kSegmentSize);
     return ret;
   }
 };
