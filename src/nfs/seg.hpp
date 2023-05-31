@@ -35,11 +35,7 @@ public:
     disk_->read(buf, offset, size);
   }
 
-  void push(const char *) {
-    // todo
-  }
-
-  void push(const std::vector<char *> &) {
+  uint32_t push(const char *) {
     // todo
   }
 

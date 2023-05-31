@@ -16,11 +16,13 @@ class Inode {
   std::unique_ptr<DiskInode> disk_inode_;
   SegmentBuilder *seg_;
   Imap *imap_;
+  bool dirty_;
 
   void for_each_block(
       uint32_t offset, const uint32_t size,
-      std::function<void(const uint32_t, const uint32_t, const uint32_t)>
+      std::function<uint32_t(const uint32_t, const uint32_t, const uint32_t)>
           callback) {
+    assert(dirty_ == false);
     auto end = offset + size;
     uint32_t *indirect1 = nullptr;
     uint32_t indirect1_addr = 0;
@@ -32,8 +34,12 @@ class Inode {
       const auto next_offset = (offset / kBlockSize + 1) * kBlockSize;
       const auto this_size = std::min(next_offset - offset, kBlockSize);
       if (i0 < kInodeDirectCnt) {
-        callback(disk_inode_->directs[i0], offset % kBlockSize, this_size);
-        offset = next_offset;
+        auto this_addr = disk_inode_->directs[i0];
+        auto new_addr = callback(this_addr, offset % kBlockSize, this_size);
+        if (new_addr != this_addr) {
+          dirty_ = true;
+          disk_inode_->directs[i0] = new_addr;
+        }
       } else if (i0 < kInodeDirectCnt + 1) {
         if (indirect1_addr != disk_inode_->indirect1) {
           if (indirect1 == nullptr) {
@@ -43,21 +49,32 @@ class Inode {
           seg_->read(reinterpret_cast<char *>(indirect1), indirect1_addr,
                      kBlockSize);
         }
-        callback(indirect1[i1], next_offset, this_size);
+        auto this_addr = indirect1[i1];
+        auto new_addr = callback(this_addr, next_offset, this_size);
+        if (new_addr != this_addr) {
+          dirty_ = true;
+          indirect1[i1] = new_addr;
+        }
       } else {
         // todo
         assert(false);
       }
+      offset = next_offset;
     }
-    if (indirect1 != nullptr)
+    if (indirect1 != nullptr) {
+      if (dirty_) {
+        auto addr = seg_->push(reinterpret_cast<const char *>(indirect1));
+        disk_inode_->indirect1 = addr;
+      }
       delete[] indirect1;
+    }
     if (indirect2 != nullptr)
       delete[] indirect2;
   }
 
 public:
   Inode(std::unique_ptr<DiskInode> disk_inode, SegmentBuilder *seg, Imap *imap)
-      : disk_inode_(std::move(disk_inode)), seg_(seg), imap_(imap) {}
+      : disk_inode_(std::move(disk_inode)), seg_(seg), imap_(imap), dirty_(false) {}
 
   std::unique_ptr<DiskInode> downgrade() {
     assert(disk_inode_ != nullptr);
@@ -68,7 +85,22 @@ public:
 
   void write(char *buf, uint32_t offset, uint32_t size) {
     assert(offset <= disk_inode_->size);
-    // todo
+    for_each_block(offset, size,
+                   [&buf, this](const uint32_t addr, const uint32_t this_offset,
+                                const uint32_t this_size) {
+                     if (this_size == kBlockSize) {
+                       assert(this_offset == 0);
+                       auto new_addr = seg_->push(buf);
+                       return new_addr;
+                     }
+                     auto this_buf = new char[kBlockSize];
+                     seg_->read(this_buf, addr, kBlockSize);
+                     std::memcpy(this_buf, buf + this_offset, this_size);
+                     delete[] this_buf;
+                     auto new_addr = seg_->push(this_buf);
+                     buf += this_size;
+                     return new_addr;
+                   });
   }
 
   void read(char *buf, uint32_t offset, uint32_t size) {
@@ -78,6 +110,7 @@ public:
                                 const uint32_t this_size) {
                      seg_->read(buf, addr + this_offset, this_size);
                      buf += this_size;
+                     return addr;
                    });
   }
 
