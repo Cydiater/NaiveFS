@@ -12,10 +12,48 @@ public:
   const char *what() { return "No entry"; }
 };
 
+class NoImapEntry : public std::exception {
+public:
+  const char *what() { return "No imap entry"; }
+};
+
 class NoFd : public std::exception {
 public:
   const char *what() { return "No file descriptor"; }
 };
+
+inline std::pair<char *, uint32_t>
+make_one_dir_entry(const std::string &name, const uint32_t inode_idx) {
+  uint32_t len = name.length();
+  auto buf = new char[4 + len + 4];
+  std::memcpy(buf, &len, 4);
+  std::memcpy(buf + 4, name.c_str(), len);
+  std::memcpy(buf + 4 + len, &inode_idx, 4);
+  return {buf, 4 + len + 4};
+}
+
+inline std::pair<std::string, uint32_t>
+parse_one_dir_entry(const char *buf, uint32_t &offset, const uint32_t size) {
+  assert(offset < size);
+  uint32_t len = 0, inode_idx = 0;
+  std::memcpy(&len, buf + offset, 4);
+  assert(len < 256);
+  assert(len > 0);
+  offset += 4;
+  std::string name(buf + offset, len);
+  offset += len;
+  std::memcpy(&inode_idx, buf + offset, 4);
+  offset += 4;
+  return {name, inode_idx};
+}
+
+inline std::string
+join_path_components(const std::vector<std::string> &path_components) {
+  std::string res = "/";
+  for (auto &name : path_components)
+    res += name + "/";
+  return res;
+}
 
 inline std::vector<std::string> parse_path_components(const char *path) {
   auto len = std::strlen(path);
@@ -37,6 +75,6 @@ inline std::vector<std::string> parse_path_components(const char *path) {
 
 inline void debug(const std::string &msg) {
 #ifndef NDEBUG
-  fprintf(stderr, "DEBUG >>>> %s\n", msg.c_str());
+  fprintf(stderr, "\033[1mDEBUG >>>> %s\033[0m\n", msg.c_str());
 #endif
 }

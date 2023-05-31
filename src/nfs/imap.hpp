@@ -1,7 +1,9 @@
 #pragma once
 
 #include "nfs/config.hpp"
+#include "nfs/utils.hpp"
 
+#include <cassert>
 #include <optional>
 #include <vector>
 
@@ -16,19 +18,32 @@ public:
   Imap(char *from) : map_(reinterpret_cast<uint32_t *>(from)) {
     active_count = 0;
     for (uint32_t i = 0; i < kMaxInode; i++) {
-      active_count += (map_[i] != 0);
+      active_count += (map_[i] != INVALID_VALUE);
     }
+    debug(std::string("IMAP init with active_count = ") +
+          std::to_string(active_count));
   }
 
   uint32_t count() const { return active_count; }
 
-  std::optional<uint32_t> get(const uint32_t inode_idx) {
-    // todo
-    return 0;
+  uint32_t get(const uint32_t inode_idx) {
+    assert(inode_idx < kMaxInode);
+    auto entry = map_[inode_idx];
+    if (entry == INVALID_VALUE) {
+      debug(std::string("IMAP get inode_idx ") + std::to_string(inode_idx) +
+            std::string(" not found"));
+      throw NoImapEntry();
+    }
+    debug(std::string("IMAP get inode_idx ") + std::to_string(inode_idx) +
+          std::string(" -> ") + std::to_string(entry));
+    return entry;
   }
 
-  uint32_t update(const uint32_t inode_idx, const uint32_t inode_addr) {
-    // todo
-    return 0;
+  void update(const uint32_t inode_idx, const uint32_t inode_addr) {
+    debug(std::string("IMAP set inode_idx ") + std::to_string(inode_idx) +
+          std::string(" -> ") + std::to_string(inode_addr));
+    assert(inode_idx < kMaxInode);
+    assert(inode_addr != INVALID_VALUE);
+    map_[inode_idx] = inode_addr;
   }
 };
