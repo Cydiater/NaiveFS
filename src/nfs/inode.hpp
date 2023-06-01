@@ -109,11 +109,12 @@ class Inode {
     read(buf, 0, disk_inode_->size);
     uint32_t offset = 0;
     while (offset < disk_inode_->size) {
+      auto this_offset = offset;
       const auto [this_name, this_inode_idx, this_deleted] =
           parse_one_dir_entry(buf, offset);
       if (this_deleted)
         continue;
-      auto done = callback(this_name, this_inode_idx, offset);
+      auto done = callback(this_name, this_inode_idx, this_offset);
       if (done) {
         break;
       }
@@ -189,7 +190,7 @@ public:
                                             const uint32_t offset) {
       if (name == this_name) {
         auto [buf, len] = make_one_dir_entry(this_name, this_inode_idx);
-        buf[len - 1] = false;
+        buf[len - 1] = true; /* deleted = true */
         ret = write(buf, offset, len);
         return true;
       }

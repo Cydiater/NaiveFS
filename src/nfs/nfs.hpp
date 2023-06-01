@@ -76,8 +76,10 @@ public:
     auto path_components = parse_path_components(path);
     assert(path_components.size() >= 1);
     auto name = path_components.back();
+    path_components.pop_back();
     auto parent_path = join_path_components(path_components);
     auto parent_inode_idx = get_inode_idx(parent_path.c_str());
+    debug("unlink parent_inode_idx = " + std::to_string(parent_inode_idx));
     auto parent_inode = get_inode(parent_inode_idx);
     auto nv_parent_disk_inode = parent_inode->erase_entry(name);
     if (nv_parent_disk_inode == nullptr) {
