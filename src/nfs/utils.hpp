@@ -31,7 +31,7 @@ make_one_dir_entry(const std::string &name, const uint32_t inode_idx) {
   std::memcpy(buf + 4, name.c_str(), len);
   std::memcpy(buf + 4 + len, &inode_idx, 4);
   *reinterpret_cast<bool *>(buf + 4 + len + 4) = false;
-  return {buf, 4 + len + 4};
+  return {buf, 4 + len + 4 + 1};
 }
 
 inline std::tuple<std::string, uint32_t, bool>

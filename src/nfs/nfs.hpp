@@ -71,6 +71,22 @@ public:
     return names;
   }
 
+  void unlink(const char *path) {
+    // todo: support real unlink after link implemented
+    auto path_components = parse_path_components(path);
+    assert(path_components.size() >= 1);
+    auto name = path_components.back();
+    auto parent_path = join_path_components(path_components);
+    auto parent_inode_idx = get_inode_idx(parent_path.c_str());
+    auto parent_inode = get_inode(parent_inode_idx);
+    auto nv_parent_disk_inode = parent_inode->erase_entry(name);
+    if (nv_parent_disk_inode == nullptr) {
+      throw NoEntry();
+    }
+    auto nv_parent_dinode_addr = seg_builder_->push(nv_parent_disk_inode.get());
+    imap_->update(parent_inode_idx, nv_parent_dinode_addr);
+  }
+
   void read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
     // todo
   }

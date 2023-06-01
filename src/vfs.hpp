@@ -60,20 +60,29 @@ inline int utimens(const char *path, const struct timespec tv[2],
   return 0;
 }
 
-int write(const char *path, const char *buf, size_t size, off_t offset,
+inline int write(const char *path, const char *buf, size_t size, off_t offset,
           struct fuse_file_info *fi) {
   // todo
   return 0;
 }
 
-int access(const char *, int) {
+inline int access(const char *, int) {
   // todo: add check here
   return F_OK;
 }
 
-int read(const char *path, char *buf, size_t size, off_t offset,
+inline int read(const char *path, char *buf, size_t size, off_t offset,
          struct fuse_file_info *fi) {
   // todo
+  return 0;
+}
+
+inline int unlink(const char *path) {
+  try {
+    nfs.unlink(path);
+  } catch(const NoEntry &e) {
+    return -ENOENT;
+  }
   return 0;
 }
 
