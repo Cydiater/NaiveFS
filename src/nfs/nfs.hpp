@@ -46,10 +46,9 @@ public:
     auto parent_path = join_path_components(path_components);
     auto parent_inode_idx = get_inode_idx(parent_path.c_str());
     auto parent_inode = get_inode(parent_inode_idx);
-    auto maybe_this_inode_idx = parent_inode->find(name);
+    auto maybe_this_inode_idx = parent_inode->find_entry(name);
     if (maybe_this_inode_idx.has_value()) {
       auto this_inode_idx = maybe_this_inode_idx.value();
-      debug("open maybe_this_inode_idx = " + std::to_string(this_inode_idx));
       auto fd = fd_mgr_->allocate(this_inode_idx);
       return fd;
     }
@@ -68,7 +67,7 @@ public:
   std::vector<std::string> readdir(const char *path) {
     auto inode_idx = get_inode_idx(path);
     auto inode = get_inode(inode_idx);
-    auto names = inode->readdir();
+    auto names = inode->list_entries();
     return names;
   }
 
@@ -87,7 +86,7 @@ public:
     auto inode = get_inode(inode_idx);
     auto path_components = parse_path_components(path);
     for (const auto &com : path_components) {
-      auto found = inode->find(com);
+      auto found = inode->find_entry(com);
       if (!found.has_value()) {
         throw NoEntry();
       }
