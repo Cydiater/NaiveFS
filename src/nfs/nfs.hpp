@@ -73,7 +73,15 @@ public:
   }
 
   void read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
-    // todo
+    auto inode_idx = fd_mgr_ -> get(fd);
+    auto inode = get_inode(inode_idx);
+    inode -> read(buf, offset, size);
+  }
+
+  void write(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
+    auto inode_idx = fd_mgr_ -> get(fd);
+    auto inode = get_inode(inode_idx);
+    inode -> write(buf, offset, size);
   }
 
   void modify(std::unique_ptr<DiskInode> disk_inode, const uint32_t inode_idx) {

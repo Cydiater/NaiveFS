@@ -8,6 +8,19 @@ cd disk
 ls -x
 touch 123
 ls -x
+ls -x > 123
 touch 456
 ls -x
+cat 123 123 > 456
+cat 456 456 > 123
+cat 123 123 > 456
+cat 456 456 > 123
+cat 123 123 > 456
+cat 456 456 > 123
+cat 123 123 > 456
+cat 456 456 > 123
+cat 123 123 > 456
+cat 456 456 > 123
+cat 123 123 > 456
+cat 456 456 > 123
 kill -9 ${NFS_PID}

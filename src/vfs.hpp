@@ -62,7 +62,8 @@ inline int utimens(const char *path, const struct timespec tv[2],
 
 int write(const char *path, const char *buf, size_t size, off_t offset,
           struct fuse_file_info *fi) {
-  // todo
+  char* tmp_buf = (char*) buf;
+  nfs.write(fi -> fh, tmp_buf, offset, size);
   return 0;
 }
 
@@ -73,7 +74,8 @@ int access(const char *, int) {
 
 int read(const char *path, char *buf, size_t size, off_t offset,
          struct fuse_file_info *fi) {
-  // todo
+  char* tmp_buf = (char*) buf;
+  nfs.read(fi -> fh, tmp_buf, offset, size);
   return 0;
 }
 
