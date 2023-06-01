@@ -12,6 +12,7 @@ fuse_args fuse_init(int argc, char **argv) {
 fuse_operations bind_ops() {
   fuse_operations nfs_op = {
       .getattr = vfs::getattr,
+      .unlink = vfs::unlink,
       .open = vfs::open,
       .read = vfs::read,
       .write = vfs::write,
