@@ -32,9 +32,9 @@ class Inode {
     assert(dirty_ == false);
     auto end = offset + size;
     uint32_t *indirect1 = nullptr;
-    uint32_t indirect1_addr = 0;
+    uint32_t indirect1_addr = -1; // an impossible value
     uint32_t *indirect2 = nullptr;
-    uint32_t indirect2_addr = 0;
+    uint32_t indirect2_addr = -1;
     std::ignore = indirect2_addr;
     if (end > disk_inode_->size) {
       disk_inode_->size = end;
@@ -62,18 +62,23 @@ class Inode {
             indirect1 = new uint32_t[kBlockSize / 4];
           }
           indirect1_addr = disk_inode_->indirect1;
-          seg_->read(reinterpret_cast<char *>(indirect1), indirect1_addr,
-                     kBlockSize);
+          if (indirect1_addr != 0)
+            seg_->read(reinterpret_cast<char *>(indirect1), indirect1_addr,
+                       kBlockSize);
         }
         auto this_addr = indirect1[i1];
-        auto new_addr = callback(this_addr, next_offset, this_size);
+        auto new_addr = callback(this_addr, offset % kBlockSize, this_size);
         if (new_addr != this_addr) {
           dirty_ = true;
           indirect1[i1] = new_addr;
         }
       } else {
-        // todo
-        assert(false);
+ /*       if (indirect2_addr != disk_inode_->indirect2) {
+          if (indirect2 == nullptr) {
+            indirect2 = new uint32_t[kBlockSize / 4];
+          }
+          indirect2_addr = disk_inode_->indirect2;
+          seg_*/
       }
       offset = next_offset;
     }
@@ -135,33 +140,35 @@ public:
   }
 
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
-    fprintf(stderr, "GGGA %s", buf);
-    debug("Inode read" + std::to_string(offset) + " " + std::to_string(size) +
+    debug("Inode write " + std::to_string(offset) + " " + std::to_string(size) +
           " " + std::to_string(disk_inode_->size));
+    fprintf(stderr, "%s", buf);
     assert(offset <= disk_inode_->size);
     for_each_block(offset, size,
                    [&buf, this](const uint32_t addr, const uint32_t this_offset,
                                 const uint32_t this_size) {
+                     debug("callback " + std::to_string(addr) + " " + std::to_string(this_offset) + " " + std::to_string(this_size));
                      if (this_size == kBlockSize) {
                        assert(this_offset == 0);
                        auto new_addr = seg_->push(buf);
+                       buf += kBlockSize;
                        return new_addr;
                      }
                      auto this_buf = new char[kBlockSize];
                      if (addr >= kCRSize)
                        seg_->read(this_buf, addr, kBlockSize);
                      std::memcpy(this_buf + this_offset, buf, this_size);
-                     fprintf(stderr, "GGGC %s", this_buf + this_offset);
                      auto new_addr = seg_->push(this_buf);
                      delete[] this_buf;
                      buf += this_size;
+                     debug("buffer address " + std::to_string((size_t) buf));
                      return new_addr;
                    });
     return downgrade();
   }
 
   void read(char *buf, uint32_t offset, uint32_t size) {
-    debug("Inode read" + std::to_string(offset) + " " + std::to_string(size) +
+    debug("Inode read " + std::to_string(offset) + " " + std::to_string(size) +
           " " + std::to_string(disk_inode_->size));
     //    assert(offset + size <= disk_inode_->size);
     for_each_block(offset, size,
