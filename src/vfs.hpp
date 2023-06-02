@@ -72,11 +72,10 @@ inline int access(const char *, int) {
   return F_OK;
 }
 
-inline int read(const char *path, char *buf, size_t size, off_t offset,
+inline int read(const char *, char *buf, size_t size, off_t offset,
                 struct fuse_file_info *fi) {
   char *tmp_buf = (char *)buf;
-  nfs.read(fi->fh, tmp_buf, offset, size);
-  return size;
+  return nfs.read(fi->fh, tmp_buf, offset, size);
 }
 
 inline int unlink(const char *path) {

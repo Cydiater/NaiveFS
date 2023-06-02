@@ -88,11 +88,11 @@ public:
     imap_->update(parent_inode_idx, nv_parent_dinode_addr);
   }
 
-  void read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
+  uint32_t read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
     debug("read " + std::to_string(size));
     auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
-    inode->read(buf, offset, size);
+    return inode->read(buf, offset, size);
   }
 
   void write(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
