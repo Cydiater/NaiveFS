@@ -96,7 +96,7 @@ public:
   }
 
   void write(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
-    debug("write " + std::to_string(size));
+    debug("FILE write size " + std::to_string(size) + " offset " + std::to_string(offset));
     auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
     auto disk_inode = inode->write(buf, offset, size);
