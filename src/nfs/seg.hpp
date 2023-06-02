@@ -3,12 +3,32 @@
 #include <cassert>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "nfs/config.hpp"
 #include "nfs/disk.hpp"
 #include "nfs/disk_inode.hpp"
 #include "nfs/utils.hpp"
+
+/*
+  [block_addr: uint32_t, inode_idx: uint32_t, block_offset: uint32_t]
+*/
+
+struct SegmentSummary {
+  static constexpr uint32_t INVALID_ENTRY = 0;
+  static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12;
+
+  uint32_t entries[MAX_ENTRIES][3];
+
+  uint32_t count() const {
+    for (uint32_t i = 0; i < MAX_ENTRIES; i++) {
+      if (entries[i][0] == INVALID_ENTRY)
+        return i;
+    }
+    return MAX_ENTRIES;
+  }
+};
 
 class SegmentBuilder {
   char *buf_;
@@ -24,7 +44,8 @@ public:
   ~SegmentBuilder() { delete[] buf_; }
 
   void seek(const uint32_t cursor) {
-    assert(offset_ == kSummarySize);
+    debug("SegmentBuidler: seek to " + std::to_string(cursor));
+    offset_ = kSummarySize;
     cursor_ = cursor;
   }
 
@@ -41,31 +62,66 @@ public:
     disk_->read(buf, offset, size);
   }
 
-  uint32_t push(const char *this_buf) {
+  std::optional<uint32_t> push(const char *this_buf) {
     debug("SegmentBuilder: push block at offset = " + std::to_string(offset_));
     if (offset_ + kBlockSize >= kSegmentSize)
-      throw SegmentOverflow();
+      return std::nullopt;
     std::memcpy(buf_ + offset_, this_buf, kBlockSize);
     auto ret = cursor_ + offset_;
     offset_ += kBlockSize;
     return ret;
   }
 
-  uint32_t push(const DiskInode *disk_inode) {
+  std::optional<uint32_t> push(const DiskInode *disk_inode) {
     debug("SegmentBuilder: push inode at offset = " + std::to_string(offset_));
+    if (offset_ + kBlockSize >= kSegmentSize)
+      return std::nullopt;
     auto inc = sizeof(DiskInode);
-    if (offset_ + inc >= kSegmentSize)
-      throw SegmentOverflow();
     std::memcpy(buf_ + offset_, disk_inode, inc);
     auto ret = cursor_ + offset_;
     offset_ += inc;
     return ret;
   }
+
+  std::pair<const char *, uint32_t> build() {
+    // todo: build imap and summary
+    return {buf_, cursor_};
+  }
 };
 
 class SegmentsManager {
+  Disk *disk_;
+  std::unique_ptr<SegmentBuilder> builder_;
+  SegmentSummary current_summary_;
+
+  uint32_t find_next_empty(uint32_t cursor) {
+    // todo: consider warping
+    cursor += kSegmentSize;
+    disk_->read(reinterpret_cast<char *>(&current_summary_), cursor,
+                kSummarySize);
+    if (current_summary_.count() == 0) {
+      return cursor;
+    }
+    return find_next_empty(cursor);
+  }
+
 public:
-  void push(const char *buf) {
-    // todo
+  SegmentsManager(Disk *disk)
+      : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)) {}
+
+  template <typename obj_t> uint32_t push(obj_t obj) {
+    auto pushed = builder_->push(obj);
+    if (pushed == std::nullopt) {
+      auto [buf, offset] = builder_->build();
+      disk_->write(buf, offset, kSegmentSize);
+      auto next_segment_addr = find_next_empty(offset);
+      builder_->seek(next_segment_addr);
+      return push(obj);
+    }
+    return pushed.value();
+  }
+
+  void read(char *buf, const uint32_t offset, const uint32_t size) {
+    builder_->read(buf, offset, size);
   }
 };

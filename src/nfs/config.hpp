@@ -9,7 +9,7 @@
 
 constexpr uint32_t kSegmentSize = 1024;
 constexpr uint32_t kBlockSize = 128;
-constexpr uint32_t kSummarySize = 16;
+constexpr uint32_t kSummarySize = 128;
 
 constexpr uint32_t kInodeDirectCnt = 24;
 constexpr const char *kDiskPath = "/tmp/disk";

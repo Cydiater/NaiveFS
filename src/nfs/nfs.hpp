@@ -17,7 +17,6 @@
 class NaiveFS {
   std::unique_ptr<Disk> disk_;
   std::unique_ptr<SegmentsManager> seg_mgr_;
-  std::unique_ptr<SegmentBuilder> seg_builder_;
   std::unique_ptr<FDManager> fd_mgr_;
   std::unique_ptr<IDManager> id_mgr_;
   std::unique_ptr<Imap> imap_;
@@ -25,7 +24,7 @@ class NaiveFS {
 public:
   NaiveFS()
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
-        seg_builder_(std::make_unique<SegmentBuilder>(disk_.get())),
+        seg_mgr_(std::make_unique<SegmentsManager>(disk_.get())),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
     char *buf = new char[kCRSize];
