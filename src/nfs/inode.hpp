@@ -145,6 +145,7 @@ public:
                      if (this_size == kBlockSize) {
                        assert(this_offset == 0);
                        auto new_addr = seg_->push(buf);
+                       buf += kBlockSize;
                        return new_addr;
                      }
                      auto this_buf = new char[kBlockSize];

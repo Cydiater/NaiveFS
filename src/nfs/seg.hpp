@@ -51,14 +51,10 @@ public:
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
     if (offset >= cursor_ && offset < cursor_ + kSegmentSize) {
-      debug("local read offset = " + std::to_string(offset) +
-            " size = " + std::to_string(size));
       assert(offset - cursor_ + size <= kSegmentSize);
       std::memcpy(buf, buf_ + offset - cursor_, size);
       return;
     }
-    debug("disk read offset =  " + std::to_string(offset) + " size = " +
-          std::to_string(size) + " cursor_ = " + std::to_string(cursor_));
     disk_->read(buf, offset, size);
   }
 
@@ -74,9 +70,9 @@ public:
 
   std::optional<uint32_t> push(const DiskInode *disk_inode) {
     debug("SegmentBuilder: push inode at offset = " + std::to_string(offset_));
-    if (offset_ + kBlockSize >= kSegmentSize)
-      return std::nullopt;
     auto inc = sizeof(DiskInode);
+    if (offset_ + inc >= kSegmentSize)
+      return std::nullopt;
     std::memcpy(buf_ + offset_, disk_inode, inc);
     auto ret = cursor_ + offset_;
     offset_ += inc;
