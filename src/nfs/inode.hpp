@@ -135,7 +135,6 @@ public:
   }
 
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
-    fprintf(stderr, "GGGA %s", buf);
     debug("Inode read" + std::to_string(offset) + " " + std::to_string(size) +
           " " + std::to_string(disk_inode_->size));
     assert(offset <= disk_inode_->size);
@@ -151,7 +150,6 @@ public:
                      if (addr >= kCRSize)
                        seg_->read(this_buf, addr, kBlockSize);
                      std::memcpy(this_buf + this_offset, buf, this_size);
-                     fprintf(stderr, "GGGC %s", this_buf + this_offset);
                      auto new_addr = seg_->push(this_buf);
                      delete[] this_buf;
                      buf += this_size;

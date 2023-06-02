@@ -42,21 +42,23 @@ public:
   }
 
   uint32_t push(const char *this_buf) {
-    debug("Push Block " + std::to_string(offset_));
+    debug("SegmentBuilder: push block at offset = " + std::to_string(offset_));
+    if (offset_ + kBlockSize >= kSegmentSize)
+      throw SegmentOverflow();
     std::memcpy(buf_ + offset_, this_buf, kBlockSize);
     auto ret = cursor_ + offset_;
     offset_ += kBlockSize;
-    assert(offset_ < kSegmentSize);
     return ret;
   }
 
   uint32_t push(const DiskInode *disk_inode) {
-    debug("Push Inode " + std::to_string(offset_));
+    debug("SegmentBuilder: push inode at offset = " + std::to_string(offset_));
     auto inc = sizeof(DiskInode);
+    if (offset_ + inc >= kSegmentSize)
+      throw SegmentOverflow();
     std::memcpy(buf_ + offset_, disk_inode, inc);
     auto ret = cursor_ + offset_;
     offset_ += inc;
-    assert(offset_ < kSegmentSize);
     return ret;
   }
 };
