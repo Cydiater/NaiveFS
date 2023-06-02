@@ -14,7 +14,7 @@
 
 class Inode {
   std::unique_ptr<DiskInode> disk_inode_;
-  SegmentBuilder *seg_;
+  SegmentsManager *seg_;
   bool dirty_;
 
   /*
@@ -128,7 +128,7 @@ class Inode {
   }
 
 public:
-  Inode(std::unique_ptr<DiskInode> disk_inode, SegmentBuilder *seg)
+  Inode(std::unique_ptr<DiskInode> disk_inode, SegmentsManager *seg)
       : disk_inode_(std::move(disk_inode)), seg_(seg), dirty_(false) {}
 
   std::unique_ptr<DiskInode> downgrade() {
@@ -167,17 +167,23 @@ public:
     return downgrade();
   }
 
-  void read(char *buf, uint32_t offset, uint32_t size) {
+  uint32_t read(char *buf, uint32_t offset, uint32_t size) {
     debug("Inode read " + std::to_string(offset) + " " + std::to_string(size) +
           " " + std::to_string(disk_inode_->size));
-    //    assert(offset + size <= disk_inode_->size);
+    if (offset >= disk_inode_->size)
+      return 0;
+    uint32_t actual_read = 0;
+    size = std::min(size, disk_inode_->size - offset);
     for_each_block(offset, size,
-                   [&buf, this](const uint32_t addr, const uint32_t this_offset,
-                                const uint32_t this_size) {
+                   [&buf, &actual_read, this](const uint32_t addr,
+                                              const uint32_t this_offset,
+                                              const uint32_t this_size) {
                      seg_->read(buf, addr + this_offset, this_size);
                      buf += this_size;
+                     actual_read += this_size;
                      return addr;
                    });
+    return actual_read;
   }
 
   std::unique_ptr<DiskInode> push(const std::string &name,

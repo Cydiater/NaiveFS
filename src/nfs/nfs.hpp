@@ -17,7 +17,6 @@
 class NaiveFS {
   std::unique_ptr<Disk> disk_;
   std::unique_ptr<SegmentsManager> seg_mgr_;
-  std::unique_ptr<SegmentBuilder> seg_builder_;
   std::unique_ptr<FDManager> fd_mgr_;
   std::unique_ptr<IDManager> id_mgr_;
   std::unique_ptr<Imap> imap_;
@@ -25,7 +24,7 @@ class NaiveFS {
 public:
   NaiveFS()
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
-        seg_builder_(std::make_unique<SegmentBuilder>(disk_.get())),
+        seg_mgr_(std::make_unique<SegmentsManager>(disk_.get())),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
     char *buf = new char[kCRSize];
@@ -33,7 +32,7 @@ public:
     imap_ = std::make_unique<Imap>(buf);
     if (imap_->count() == 0) {
       auto root_inode = DiskInode::make_dir();
-      auto addr = seg_builder_->push(root_inode.get());
+      auto addr = seg_mgr_->push(root_inode.get());
       imap_->update(id_mgr_->root_inode_idx, addr);
     }
   }
@@ -53,12 +52,12 @@ public:
       return fd;
     }
     auto this_disk_inode = DiskInode::make_file();
-    auto this_dinode_addr = seg_builder_->push(this_disk_inode.get());
+    auto this_dinode_addr = seg_mgr_->push(this_disk_inode.get());
     auto this_inode_idx = id_mgr_->allocate();
     imap_->update(this_inode_idx, this_dinode_addr);
     debug("open this_inode_idx = " + std::to_string(this_inode_idx));
     auto nv_parent_disk_inode = parent_inode->push(name, this_inode_idx);
-    auto nv_parent_dinode_addr = seg_builder_->push(nv_parent_disk_inode.get());
+    auto nv_parent_dinode_addr = seg_mgr_->push(nv_parent_disk_inode.get());
     imap_->update(parent_inode_idx, nv_parent_dinode_addr);
     auto fd = fd_mgr_->allocate(this_inode_idx);
     return fd;
@@ -85,15 +84,15 @@ public:
     if (nv_parent_disk_inode == nullptr) {
       throw NoEntry();
     }
-    auto nv_parent_dinode_addr = seg_builder_->push(nv_parent_disk_inode.get());
+    auto nv_parent_dinode_addr = seg_mgr_->push(nv_parent_disk_inode.get());
     imap_->update(parent_inode_idx, nv_parent_dinode_addr);
   }
 
-  void read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
-    debug("FILE read size " + std::to_string(size) + " offset " + std::to_string(offset));
+  uint32_t read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
+    debug("read " + std::to_string(size));
     auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
-    inode->read(buf, offset, size);
+    return inode->read(buf, offset, size);
   }
 
   void write(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
@@ -101,7 +100,7 @@ public:
     auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
     auto disk_inode = inode->write(buf, offset, size);
-    auto new_addr = seg_builder_->push(disk_inode.get());
+    auto new_addr = seg_mgr_->push(disk_inode.get());
     imap_->update(inode_idx, new_addr);
   }
 
@@ -133,8 +132,8 @@ public:
   std::unique_ptr<DiskInode> get_diskinode(const uint32_t inode_idx) {
     auto inode_addr = imap_->get(inode_idx);
     auto disk_inode = std::make_unique<DiskInode>();
-    seg_builder_->read(reinterpret_cast<char *>(disk_inode.get()), inode_addr,
-                       sizeof(DiskInode));
+    seg_mgr_->read(reinterpret_cast<char *>(disk_inode.get()), inode_addr,
+                   sizeof(DiskInode));
     return disk_inode;
   }
 
@@ -143,8 +142,7 @@ private:
     auto disk_inode = get_diskinode(inode_idx);
     if (disk_inode == nullptr)
       return nullptr;
-    auto inode =
-        std::make_unique<Inode>(std::move(disk_inode), seg_builder_.get());
+    auto inode = std::make_unique<Inode>(std::move(disk_inode), seg_mgr_.get());
     return inode;
   }
 };
