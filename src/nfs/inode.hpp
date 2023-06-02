@@ -14,7 +14,7 @@
 
 class Inode {
   std::unique_ptr<DiskInode> disk_inode_;
-  SegmentBuilder *seg_;
+  SegmentsManager *seg_;
   bool dirty_;
 
   /*
@@ -123,7 +123,7 @@ class Inode {
   }
 
 public:
-  Inode(std::unique_ptr<DiskInode> disk_inode, SegmentBuilder *seg)
+  Inode(std::unique_ptr<DiskInode> disk_inode, SegmentsManager *seg)
       : disk_inode_(std::move(disk_inode)), seg_(seg), dirty_(false) {}
 
   std::unique_ptr<DiskInode> downgrade() {
@@ -134,7 +134,8 @@ public:
     return ret;
   }
 
-  std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
+  std::unique_ptr<DiskInode> write(const char *buf, uint32_t offset,
+                                   uint32_t size) {
     debug("Inode read" + std::to_string(offset) + " " + std::to_string(size) +
           " " + std::to_string(disk_inode_->size));
     assert(offset <= disk_inode_->size);

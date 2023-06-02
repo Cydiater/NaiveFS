@@ -8,7 +8,7 @@
 // 用于测试 SegmentsManager
 
 constexpr uint32_t kSegmentSize = 1024;
-constexpr uint32_t kBlockSize = 128;
+constexpr uint32_t kBlockSize = 256;
 constexpr uint32_t kSummarySize = 128;
 
 constexpr uint32_t kInodeDirectCnt = 24;
