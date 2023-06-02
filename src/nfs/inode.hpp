@@ -128,7 +128,7 @@ public:
 
   std::unique_ptr<DiskInode> downgrade() {
     assert(disk_inode_ != nullptr);
-    debug(std::to_string(disk_inode_ -> directs[0]));
+    debug(std::to_string(disk_inode_->directs[0]));
     auto ret = std::unique_ptr<DiskInode>(nullptr);
     disk_inode_.swap(ret);
     return ret;
@@ -136,7 +136,8 @@ public:
 
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
     fprintf(stderr, "GGGA %s", buf);
-    debug("Inode read" + std::to_string(offset) + " " + std::to_string(size) + " " + std::to_string(disk_inode_ -> size));
+    debug("Inode read" + std::to_string(offset) + " " + std::to_string(size) +
+          " " + std::to_string(disk_inode_->size));
     assert(offset <= disk_inode_->size);
     for_each_block(offset, size,
                    [&buf, this](const uint32_t addr, const uint32_t this_offset,
@@ -150,7 +151,7 @@ public:
                      if (addr >= kCRSize)
                        seg_->read(this_buf, addr, kBlockSize);
                      std::memcpy(this_buf + this_offset, buf, this_size);
-                      fprintf(stderr, "GGGC %s", this_buf + this_offset);
+                     fprintf(stderr, "GGGC %s", this_buf + this_offset);
                      auto new_addr = seg_->push(this_buf);
                      delete[] this_buf;
                      buf += this_size;
@@ -160,8 +161,9 @@ public:
   }
 
   void read(char *buf, uint32_t offset, uint32_t size) {
-    debug("Inode read" + std::to_string(offset) + " " + std::to_string(size) + " " + std::to_string(disk_inode_ -> size));
-//    assert(offset + size <= disk_inode_->size);
+    debug("Inode read" + std::to_string(offset) + " " + std::to_string(size) +
+          " " + std::to_string(disk_inode_->size));
+    //    assert(offset + size <= disk_inode_->size);
     for_each_block(offset, size,
                    [&buf, this](const uint32_t addr, const uint32_t this_offset,
                                 const uint32_t this_size) {

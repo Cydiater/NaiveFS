@@ -17,7 +17,8 @@ class SegmentBuilder {
   Disk *disk_;
 
 public:
-  SegmentBuilder(Disk *disk) : offset_(kSummarySize), cursor_(kCRSize), disk_(disk) {
+  SegmentBuilder(Disk *disk)
+      : offset_(kSummarySize), cursor_(kCRSize), disk_(disk) {
     buf_ = new char[kSegmentSize];
   }
   ~SegmentBuilder() { delete[] buf_; }
@@ -29,14 +30,14 @@ public:
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
     if (offset >= cursor_ && offset < cursor_ + kSegmentSize) {
-      debug("local read offset = "   + std::to_string(offset) +
+      debug("local read offset = " + std::to_string(offset) +
             " size = " + std::to_string(size));
       assert(offset - cursor_ + size <= kSegmentSize);
       std::memcpy(buf, buf_ + offset - cursor_, size);
       return;
     }
-    debug("disk read offset =  " + std::to_string(offset) +
-          " size = " + std::to_string(size) + " cursor_ = " + std::to_string(cursor_));
+    debug("disk read offset =  " + std::to_string(offset) + " size = " +
+          std::to_string(size) + " cursor_ = " + std::to_string(cursor_));
     disk_->read(buf, offset, size);
   }
 

@@ -91,18 +91,18 @@ public:
 
   void read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
     debug("read " + std::to_string(size));
-    auto inode_idx = fd_mgr_ -> get(fd);
+    auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
-    inode -> read(buf, offset, size);
+    inode->read(buf, offset, size);
   }
 
   void write(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
     debug("write " + std::to_string(size));
-    auto inode_idx = fd_mgr_ -> get(fd);
+    auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
-    auto disk_inode = inode -> write(buf, offset, size);
-    auto new_addr = seg_builder_ -> push(disk_inode.get());
-    imap_ -> update(inode_idx, new_addr);
+    auto disk_inode = inode->write(buf, offset, size);
+    auto new_addr = seg_builder_->push(disk_inode.get());
+    imap_->update(inode_idx, new_addr);
   }
 
   void modify(std::unique_ptr<DiskInode> disk_inode, const uint32_t inode_idx) {
