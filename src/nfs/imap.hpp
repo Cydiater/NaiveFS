@@ -45,5 +45,6 @@ public:
     assert(inode_idx < kMaxInode);
     assert(inode_addr != INVALID_VALUE);
     map_[inode_idx] = inode_addr;
+    // todo: write update to log
   }
 };

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <exception>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -29,11 +30,12 @@ make_one_dir_entry(const std::string &name, const uint32_t inode_idx) {
   std::memcpy(buf, &len, 4);
   std::memcpy(buf + 4, name.c_str(), len);
   std::memcpy(buf + 4 + len, &inode_idx, 4);
-  return {buf, 4 + len + 4};
+  *reinterpret_cast<bool *>(buf + 4 + len + 4) = false;
+  return {buf, 4 + len + 4 + 1};
 }
 
-inline std::pair<std::string, uint32_t> parse_one_dir_entry(const char *buf,
-                                                            uint32_t &offset) {
+inline std::tuple<std::string, uint32_t, bool>
+parse_one_dir_entry(const char *buf, uint32_t &offset) {
   uint32_t len = 0, inode_idx = 0;
   std::memcpy(&len, buf + offset, 4);
   assert(len < 256);
@@ -43,7 +45,10 @@ inline std::pair<std::string, uint32_t> parse_one_dir_entry(const char *buf,
   offset += len;
   std::memcpy(&inode_idx, buf + offset, 4);
   offset += 4;
-  return {name, inode_idx};
+  bool deleted = false;
+  std::memcpy(&deleted, buf + offset, 1);
+  offset += 1;
+  return {name, inode_idx, deleted};
 }
 
 inline std::string
