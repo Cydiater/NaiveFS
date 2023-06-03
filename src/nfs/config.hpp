@@ -9,7 +9,7 @@ constexpr const char *kDiskPath = "/tmp/disk";
 constexpr uint32_t kDiskCapacityGB = 16;
 constexpr uint32_t kMaxInode = 65536;
 constexpr uint32_t kCRSize = kMaxInode * 4 + 4;
-constexpr uint32_t kMemDiskCapacityMB = 16;
+constexpr uint32_t kMemDiskCapacityMB = 128;
 
 #ifdef SMALL_SEGMENT
 

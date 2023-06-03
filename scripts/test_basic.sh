@@ -20,6 +20,8 @@ cat 456
 ls -x
 rm 123
 ls -x
+cp ../../scripts/64MB.file foo
+diff foo ../../scripts/64MB.file
 
 if ps -p $NFS_PID > /dev/null; then
    kill -9 $NFS_PID
