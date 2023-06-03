@@ -1,8 +1,14 @@
+mkdir build
 cd build
-rm -rf disk
+cmake .. 1> /dev/null || exit
+make 1> /dev/null || exit
+
 mkdir disk
-./nfs disk > test_basic.log 2>&1
+./nfs -d disk > test_basic.log 2>&1 &
+NFS_PID=$!
+>&2 echo "nfs running in ${NFS_PID}"
 sleep 1
+
 cd disk
 touch 123
 ls -x
@@ -14,3 +20,10 @@ cat 456
 ls -x
 rm 123
 ls -x
+
+if ps -p $NFS_PID > /dev/null; then
+   kill -9 $NFS_PID
+else
+   echo "nfs exited"
+   exit -1
+fi

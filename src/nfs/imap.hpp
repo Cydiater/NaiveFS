@@ -1,7 +1,6 @@
 #pragma once
 
 #include "nfs/config.hpp"
-#include "nfs/nfs.hpp"
 #include "nfs/utils.hpp"
 
 #include <cassert>
