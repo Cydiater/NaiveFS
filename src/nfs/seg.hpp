@@ -39,9 +39,9 @@ class SegmentBuilder {
 public:
   SegmentBuilder(Disk *disk)
       : offset_(kSummarySize), cursor_(kCRSize), disk_(disk) {
-    buf_ = new char[kSegmentSize];
+    buf_ = disk->align_alloc(kSegmentSize);
   }
-  ~SegmentBuilder() { delete[] buf_; }
+  ~SegmentBuilder() { free(buf_); }
 
   void seek(const uint32_t cursor) {
     debug("SegmentBuidler: seek to " + std::to_string(cursor));
@@ -93,7 +93,7 @@ class SegmentsManager {
   uint32_t find_next_empty(uint32_t cursor) {
     // todo: consider warping
     cursor += kSegmentSize;
-    disk_->read(reinterpret_cast<char *>(&current_summary_), cursor,
+    disk_->nread(reinterpret_cast<char *>(&current_summary_), cursor,
                 kSummarySize);
     if (current_summary_.count() == 0) {
       return cursor;

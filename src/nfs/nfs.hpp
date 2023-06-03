@@ -37,10 +37,12 @@ class NaiveFS {
   void flush_cr() {
     auto lock = std::unique_lock(lock_flushing_cr_);
     const char *buf = imap_->get_buf();
+    char *newbuf = disk_->align_alloc(kCRSize);
+    memcpy(newbuf, buf, sizeof(kCRSize));
     auto addr = last_cr_dest_ == CR_DEST::START ? disk_->end() - kCRSize : 0;
     last_cr_dest_ =
         last_cr_dest_ == CR_DEST::START ? CR_DEST::END : CR_DEST::START;
-    disk_->write(buf, addr, kCRSize);
+    disk_->write(newbuf, addr, kCRSize);
   }
 
   // running in a seperate thread
@@ -59,8 +61,9 @@ public:
         id_mgr_(std::make_unique<IDManager>()) {
     char *buf_start = new char[kCRSize];
     char *buf_end = new char[kCRSize];
-    disk_->read(buf_start, 0, kCRSize);
-    disk_->read(buf_end, disk_->end() - kCRSize, kCRSize);
+    disk_->nread(buf_start, 0, kCRSize);
+    disk_->nread(buf_end, disk_->end() - kCRSize, kCRSize);
+    // non-aligned read
     auto imap1_ = std::make_unique<Imap>(buf_start);
     auto imap2_ = std::make_unique<Imap>(buf_end);
     debug("imap version1 = " + std::to_string(imap1_->version()));
