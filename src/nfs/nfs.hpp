@@ -21,15 +21,27 @@ class NaiveFS {
   std::unique_ptr<IDManager> id_mgr_;
   std::unique_ptr<Imap> imap_;
 
+  enum class CR_DEST { START, END } last_cr_dest_;
+
 public:
   NaiveFS()
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
         seg_mgr_(std::make_unique<SegmentsManager>(disk_.get())),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
-    char *buf = new char[kCRSize];
-    disk_->read(buf, 0, kCRSize);
-    imap_ = std::make_unique<Imap>(buf);
+    char *buf_start = new char[kCRSize];
+    char *buf_end = new char[kCRSize];
+    disk_->read(buf_start, 0, kCRSize);
+    disk_->read(buf_end, disk_->end() - kCRSize, kCRSize);
+    auto imap1_ = std::make_unique<Imap>(buf_start);
+    auto imap2_ = std::make_unique<Imap>(buf_end);
+    if (imap1_->version() > imap2_->version()) {
+      imap_.swap(imap1_);
+      last_cr_dest_ = CR_DEST::START;
+    } else {
+      imap_.swap(imap2_);
+      last_cr_dest_ = CR_DEST::END;
+    }
     if (imap_->count() == 0) {
       auto root_inode = DiskInode::make_dir();
       auto addr = seg_mgr_->push(root_inode.get());
@@ -96,7 +108,8 @@ public:
   }
 
   void write(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
-    debug("FILE write size " + std::to_string(size) + " offset " + std::to_string(offset));
+    debug("FILE write size " + std::to_string(size) + " offset " +
+          std::to_string(offset));
     auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
     auto disk_inode = inode->write(buf, offset, size);

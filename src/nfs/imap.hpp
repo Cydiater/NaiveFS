@@ -10,12 +10,14 @@
 class Imap {
   uint32_t *map_;
   uint32_t active_count;
+  uint32_t version_;
   static const uint32_t INVALID_VALUE = 0;
   // todo: ensure thread safety
   // flushing imap to cr should ensure mutex against update
 
 public:
-  Imap(char *from) : map_(reinterpret_cast<uint32_t *>(from)) {
+  Imap(char *from) : map_(reinterpret_cast<uint32_t *>(from + 4)) {
+    std::memcpy(&version_, from, 4);
     active_count = 0;
     for (uint32_t i = 0; i < kMaxInode; i++) {
       active_count += (map_[i] != INVALID_VALUE);
@@ -24,7 +26,10 @@ public:
           std::to_string(active_count));
   }
 
+  ~Imap() { delete map_; }
+
   uint32_t count() const { return active_count; }
+  uint32_t version() const { return version_; }
 
   uint32_t get(const uint32_t inode_idx) {
     assert(inode_idx < kMaxInode);

@@ -55,7 +55,8 @@ struct DiskInode {
       return {offset / kBlockSize, 0, 0};
     if (offset < base2)
       return {kInodeDirectCnt, (offset - base1) / kBlockSize, 0};
-    return {kInodeDirectCnt + 1, ((offset - base2) / kBlockSize) % (kBlockSize / 4), 
+    return {kInodeDirectCnt + 1,
+            ((offset - base2) / kBlockSize) % (kBlockSize / 4),
             (offset - base2) / kBlockSize / (kBlockSize / 4)};
   }
 };
