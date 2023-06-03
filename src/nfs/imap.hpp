@@ -1,11 +1,14 @@
 #pragma once
 
 #include "nfs/config.hpp"
+#include "nfs/nfs.hpp"
 #include "nfs/utils.hpp"
 
 #include <cassert>
 #include <optional>
 #include <vector>
+
+class NaiveFS;
 
 class Imap {
   uint32_t *map_;
@@ -26,7 +29,9 @@ public:
           std::to_string(active_count));
   }
 
-  ~Imap() { delete map_; }
+  ~Imap() { delete[](map_ - 1); }
+
+  const char *get_buf() { return reinterpret_cast<const char *>(map_ - 1); }
 
   uint32_t count() const { return active_count; }
   uint32_t version() const { return version_; }
