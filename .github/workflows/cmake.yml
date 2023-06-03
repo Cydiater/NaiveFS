@@ -8,4 +8,4 @@ jobs:
       - name: Install dependencies
         run: sudo apt update -y && sudo apt install -y libfuse3-dev cmake g++
       - uses: actions/checkout@v3
-      - run: scripts/test.sh
+      - run: sh scripts/test.sh
