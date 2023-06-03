@@ -30,12 +30,14 @@ class Inode {
       std::function<uint32_t(const uint32_t, const uint32_t, const uint32_t)>
           callback) {
     assert(dirty_ == false);
+    int dirty_1 = -1;
     auto end = offset + size;
     uint32_t *indirect1 = nullptr;
     uint32_t indirect1_addr = -1; // an impossible value
-    uint32_t *indirect2 = nullptr;
-    uint32_t indirect2_addr = -1;
-    std::ignore = indirect2_addr;
+    uint32_t *indirect21 = nullptr;
+    uint32_t indirect21_addr = -1; // an impossible value
+    uint32_t *indirect22 = nullptr;
+    uint32_t indirect22_addr = -1;
     if (end > disk_inode_->size) {
       disk_inode_->size = end;
       dirty_ = true;
@@ -65,6 +67,7 @@ class Inode {
           if (indirect1_addr != 0)
             seg_->read(reinterpret_cast<char *>(indirect1), indirect1_addr,
                        kBlockSize);
+          else memset(indirect1, 0, kBlockSize);
         }
         auto this_addr = indirect1[i1];
         auto new_addr = callback(this_addr, offset % kBlockSize, this_size);
@@ -73,12 +76,46 @@ class Inode {
           indirect1[i1] = new_addr;
         }
       } else {
- /*       if (indirect2_addr != disk_inode_->indirect2) {
-          if (indirect2 == nullptr) {
-            indirect2 = new uint32_t[kBlockSize / 4];
+        debug("indirect2 " + std::to_string(disk_inode_->indirect2));
+        if (indirect22_addr != disk_inode_->indirect2) {
+          if (indirect22 == nullptr) {
+            indirect22 = new uint32_t[kBlockSize / 4];
           }
-          indirect2_addr = disk_inode_->indirect2;
-          seg_*/
+          indirect22_addr = disk_inode_->indirect2;
+          indirect21_addr = -1;
+          if (indirect22_addr != 0)
+            seg_->read(reinterpret_cast<char *>(indirect22), indirect22_addr,
+                       kBlockSize);
+          else memset(indirect22, 0, kBlockSize);
+        }
+        debug("indirect1 " + std::to_string(indirect22[i2]));
+        if (indirect21_addr != indirect22[i2])
+        {
+          debug("ok changed " + std::to_string(i2));
+          if (indirect21 != nullptr) {
+            if (dirty_1 != -1) {
+              auto addr = seg_->push(reinterpret_cast<const char *>(indirect21));
+              indirect22[dirty_1] = addr;
+              dirty_1 = -1;
+            }
+          }
+          else {
+            indirect21 = new uint32_t[kBlockSize / 4];
+          }
+          indirect21_addr = indirect22[i2];
+          if (indirect21_addr != 0)
+            seg_->read(reinterpret_cast<char *>(indirect21), indirect21_addr,
+                       kBlockSize);
+          else memset(indirect21, 0, kBlockSize);
+        }
+        debug("i2Block " + std::to_string(indirect21[i1]));
+        auto this_addr = indirect21[i1];
+        auto new_addr = callback(this_addr, offset % kBlockSize, this_size);
+        if (new_addr != this_addr) {
+          dirty_ = true;
+          dirty_1 = i2; // which offset of indirect22 it comes from
+          indirect21[i1] = new_addr;
+        }
       }
       offset = next_offset;
     }
@@ -89,8 +126,22 @@ class Inode {
       }
       delete[] indirect1;
     }
-    if (indirect2 != nullptr)
-      delete[] indirect2;
+    if (indirect21 != nullptr) {
+      if (dirty_1 != -1) {
+        auto addr = seg_->push(reinterpret_cast<const char *>(indirect21));
+        debug("write back 21 " + std::to_string(addr));
+        indirect22[dirty_1] = addr;
+      }
+      delete[] indirect21;
+    }
+    if (indirect22 != nullptr) {
+      if (dirty_) {
+        auto addr = seg_->push(reinterpret_cast<const char *>(indirect22));
+        debug("write back 22 " + std::to_string(addr));
+        disk_inode_->indirect2 = addr;
+      }
+      delete[] indirect22;
+    }
   }
 
   /*
@@ -142,7 +193,6 @@ public:
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
     debug("Inode write " + std::to_string(offset) + " " + std::to_string(size) +
           " " + std::to_string(disk_inode_->size));
-    fprintf(stderr, "%s", buf);
     assert(offset <= disk_inode_->size);
     for_each_block(offset, size,
                    [&buf, this](const uint32_t addr, const uint32_t this_offset,
@@ -161,7 +211,6 @@ public:
                      auto new_addr = seg_->push(this_buf);
                      delete[] this_buf;
                      buf += this_size;
-                     debug("buffer address " + std::to_string((size_t) buf));
                      return new_addr;
                    });
     return downgrade();
