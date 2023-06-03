@@ -67,7 +67,8 @@ class Inode {
           if (indirect1_addr != 0)
             seg_->read(reinterpret_cast<char *>(indirect1), indirect1_addr,
                        kBlockSize);
-          else memset(indirect1, 0, kBlockSize);
+          else
+            memset(indirect1, 0, kBlockSize);
         }
         auto this_addr = indirect1[i1];
         auto new_addr = callback(this_addr, offset % kBlockSize, this_size);
@@ -86,27 +87,28 @@ class Inode {
           if (indirect22_addr != 0)
             seg_->read(reinterpret_cast<char *>(indirect22), indirect22_addr,
                        kBlockSize);
-          else memset(indirect22, 0, kBlockSize);
+          else
+            memset(indirect22, 0, kBlockSize);
         }
         debug("indirect1 " + std::to_string(indirect22[i2]));
-        if (indirect21_addr != indirect22[i2])
-        {
+        if (indirect21_addr != indirect22[i2]) {
           debug("ok changed " + std::to_string(i2));
           if (indirect21 != nullptr) {
             if (dirty_1 != -1) {
-              auto addr = seg_->push(reinterpret_cast<const char *>(indirect21));
+              auto addr =
+                  seg_->push(reinterpret_cast<const char *>(indirect21));
               indirect22[dirty_1] = addr;
               dirty_1 = -1;
             }
-          }
-          else {
+          } else {
             indirect21 = new uint32_t[kBlockSize / 4];
           }
           indirect21_addr = indirect22[i2];
           if (indirect21_addr != 0)
             seg_->read(reinterpret_cast<char *>(indirect21), indirect21_addr,
                        kBlockSize);
-          else memset(indirect21, 0, kBlockSize);
+          else
+            memset(indirect21, 0, kBlockSize);
         }
         debug("i2Block " + std::to_string(indirect21[i1]));
         auto this_addr = indirect21[i1];
@@ -197,7 +199,9 @@ public:
     for_each_block(offset, size,
                    [&buf, this](const uint32_t addr, const uint32_t this_offset,
                                 const uint32_t this_size) {
-                     debug("callback " + std::to_string(addr) + " " + std::to_string(this_offset) + " " + std::to_string(this_size));
+                     debug("callback " + std::to_string(addr) + " " +
+                           std::to_string(this_offset) + " " +
+                           std::to_string(this_size));
                      if (this_size == kBlockSize) {
                        assert(this_offset == 0);
                        auto new_addr = seg_->push(buf);

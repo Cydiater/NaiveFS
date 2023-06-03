@@ -1,8 +1,12 @@
 #pragma once
 
 #include <cassert>
+#include <chrono>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <shared_mutex>
+#include <thread>
 
 #include "nfs/config.hpp"
 #include "nfs/disk.hpp"
@@ -21,23 +25,65 @@ class NaiveFS {
   std::unique_ptr<IDManager> id_mgr_;
   std::unique_ptr<Imap> imap_;
 
+  enum class CR_DEST { START, END } last_cr_dest_;
+
+  // We need to promote imap lock to this level
+  // to prevent partial update. That is to say,
+  // every atomic fs operation should acquire a shared
+  // lock before any other update.
+  std::shared_mutex lock_flushing_cr_;
+  std::unique_ptr<std::thread> bg_thread_;
+
+  void flush_cr() {
+    auto lock = std::unique_lock(lock_flushing_cr_);
+    const char *buf = imap_->get_buf();
+    auto addr = last_cr_dest_ == CR_DEST::START ? disk_->end() - kCRSize : 0;
+    last_cr_dest_ =
+        last_cr_dest_ == CR_DEST::START ? CR_DEST::END : CR_DEST::START;
+    disk_->write(buf, addr, kCRSize);
+  }
+
+  // running in a seperate thread
+  void background() {
+    while (true) {
+      std::this_thread::sleep_for(std::chrono::seconds(kCRFlushingSeconds));
+      flush_cr();
+    }
+  }
+
 public:
   NaiveFS()
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
         seg_mgr_(std::make_unique<SegmentsManager>(disk_.get())),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
-    char *buf = new char[kCRSize];
-    disk_->read(buf, 0, kCRSize);
-    imap_ = std::make_unique<Imap>(buf);
+    char *buf_start = new char[kCRSize];
+    char *buf_end = new char[kCRSize];
+    disk_->read(buf_start, 0, kCRSize);
+    disk_->read(buf_end, disk_->end() - kCRSize, kCRSize);
+    auto imap1_ = std::make_unique<Imap>(buf_start);
+    auto imap2_ = std::make_unique<Imap>(buf_end);
+    debug("imap version1 = " + std::to_string(imap1_->version()));
+    debug("imap version2 = " + std::to_string(imap2_->version()));
+    if (imap1_->version() > imap2_->version()) {
+      imap_.swap(imap1_);
+      last_cr_dest_ = CR_DEST::START;
+    } else {
+      imap_.swap(imap2_);
+      last_cr_dest_ = CR_DEST::END;
+    }
     if (imap_->count() == 0) {
       auto root_inode = DiskInode::make_dir();
       auto addr = seg_mgr_->push(root_inode.get());
       imap_->update(id_mgr_->root_inode_idx, addr);
     }
+    bg_thread_ = std::make_unique<std::thread>(&NaiveFS::background, this);
   }
 
+  ~NaiveFS() { flush_cr(); }
+
   uint32_t open(const char *path, const int flags) {
+    auto lock = std::shared_lock(lock_flushing_cr_);
     auto path_components = parse_path_components(path);
     assert(path_components.size() >= 1);
     auto name = path_components.back();
@@ -64,6 +110,7 @@ public:
   }
 
   std::vector<std::string> readdir(const char *path) {
+    auto lock = std::shared_lock(lock_flushing_cr_);
     auto inode_idx = get_inode_idx(path);
     auto inode = get_inode(inode_idx);
     auto names = inode->list_entries();
@@ -72,6 +119,7 @@ public:
 
   void unlink(const char *path) {
     // todo: support real unlink after link implemented
+    auto lock = std::shared_lock(lock_flushing_cr_);
     auto path_components = parse_path_components(path);
     assert(path_components.size() >= 1);
     auto name = path_components.back();
@@ -89,6 +137,7 @@ public:
   }
 
   uint32_t read(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
+    auto lock = std::shared_lock(lock_flushing_cr_);
     debug("read " + std::to_string(size));
     auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
@@ -96,7 +145,9 @@ public:
   }
 
   void write(const uint32_t fd, char *buf, uint32_t offset, uint32_t size) {
-    debug("FILE write size " + std::to_string(size) + " offset " + std::to_string(offset));
+    auto lock = std::shared_lock(lock_flushing_cr_);
+    debug("FILE write size " + std::to_string(size) + " offset " +
+          std::to_string(offset));
     auto inode_idx = fd_mgr_->get(fd);
     auto inode = get_inode(inode_idx);
     auto disk_inode = inode->write(buf, offset, size);

@@ -18,10 +18,12 @@ public:
 
   ~MemDisk() { delete[] mem_; }
 
+  uint32_t end() const { return kMemDiskCapacityMB * 1024 * 1024; }
+
   void read(char *buf, const uint32_t offset, const uint32_t size) {
     debug("Disk read [" + std::to_string(offset) + ", " +
           std::to_string(offset + size) + ")");
-    assert(offset + size < kMemDiskCapacityMB * 1024 * 1024);
+    assert(offset + size <= kMemDiskCapacityMB * 1024 * 1024);
     std::memcpy(buf, mem_ + offset, size);
   }
 
