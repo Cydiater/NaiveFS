@@ -28,6 +28,6 @@ constexpr uint32_t kMaxInode = 65536;
 constexpr uint32_t kCRSize = kMaxInode * 4;
 constexpr uint32_t kSegmentSize = 512 * 1024;
 constexpr uint32_t kSummarySize = 1024;
-constexpr uint32_t kMemDiskCapacityMB = 16;
+constexpr uint32_t kMemDiskCapacityMB = 2 * 1024;
 
 #endif
