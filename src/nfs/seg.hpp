@@ -37,6 +37,7 @@ class SegmentBuilder {
   SegmentSummary *summary_;
   uint32_t offset_;
   uint32_t cursor_;
+  uint32_t occupied_bytes_;
   Disk *disk_;
 
 public:
@@ -51,6 +52,7 @@ public:
     debug("SegmentBuidler: seek to " + std::to_string(cursor));
     offset_ = kSummarySize;
     cursor_ = cursor;
+    occupied_bytes_ = 0;
   }
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
@@ -69,6 +71,7 @@ public:
     std::memcpy(buf_ + offset_, this_buf, kBlockSize);
     auto ret = cursor_ + offset_;
     offset_ += kBlockSize;
+    occupied_bytes_ += kBlockSize;
     return ret;
   }
 
@@ -80,15 +83,16 @@ public:
     std::memcpy(buf_ + offset_, disk_inode, inc);
     auto ret = cursor_ + offset_;
     offset_ += inc;
+    occupied_bytes_ += inc;
     return ret;
   }
 
   /*
-    return: [buffer, offset, imap_size]
+    return: [buffer, offset, occupied_bytes]
    */
   std::tuple<const char *, uint32_t, uint32_t> build() {
     // todo: build imap and summary
-    return {buf_, cursor_, 0};
+    return {buf_, cursor_, occupied_bytes_};
   }
 };
 
@@ -153,9 +157,9 @@ public:
   }
 
   void flush() {
-    auto [buf, offset, imap_size] = builder_->build();
+    auto [buf, offset, occupied_bytes] = builder_->build();
     auto idx = (offset - kCRSize) / kSegmentSize;
-    seg_status_[idx].occupied_bytes = kSegmentSize - kSummarySize - imap_size;
+    seg_status_[idx].occupied_bytes = occupied_bytes;
     seg_status_[idx].flushing_version = imap_->version();
     disk_->write(buf, offset, kSegmentSize);
     auto next_segment_addr = find_next_empty(offset + kSegmentSize);
