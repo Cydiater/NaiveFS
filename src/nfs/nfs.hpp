@@ -105,6 +105,7 @@ public:
     path_components.pop_back();
     auto parent_path = join_path_components(path_components);
     auto parent_inode_idx = get_inode_idx(parent_path.c_str());
+    auto parent_dinode_addr = imap_->get(parent_inode_idx);
     auto parent_inode = get_inode(parent_inode_idx);
     auto maybe_this_inode_idx = parent_inode->find_entry(name);
     if (maybe_this_inode_idx.has_value()) {
@@ -118,7 +119,8 @@ public:
     imap_->update(this_inode_idx, this_dinode_addr);
     debug("open this_inode_idx = " + std::to_string(this_inode_idx));
     auto nv_parent_disk_inode = parent_inode->push(name, this_inode_idx);
-    auto nv_parent_dinode_addr = seg_mgr_->push(nv_parent_disk_inode.get());
+    auto nv_parent_dinode_addr =
+        seg_mgr_->push(nv_parent_disk_inode.get(), parent_dinode_addr);
     imap_->update(parent_inode_idx, nv_parent_dinode_addr);
     auto fd = fd_mgr_->allocate(this_inode_idx);
     return fd;
@@ -164,9 +166,10 @@ public:
     debug("FILE write size " + std::to_string(size) + " offset " +
           std::to_string(offset));
     auto inode_idx = fd_mgr_->get(fd);
+    auto dinode_addr = imap_->get(inode_idx);
     auto inode = get_inode(inode_idx);
     auto disk_inode = inode->write(buf, offset, size);
-    auto new_addr = seg_mgr_->push(disk_inode.get());
+    auto new_addr = seg_mgr_->push(disk_inode.get(), dinode_addr);
     imap_->update(inode_idx, new_addr);
   }
 

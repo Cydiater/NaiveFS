@@ -38,21 +38,27 @@ class SegmentBuilder {
   uint32_t offset_;
   uint32_t cursor_;
   uint32_t occupied_bytes_;
+  uint32_t block_cnt_;
   Disk *disk_;
+  std::vector<std::pair<uint32_t /* inode_idx */, uint32_t /* addr */>> imap_;
 
 public:
   SegmentBuilder(Disk *disk)
       : offset_(kSummarySize), cursor_(kCRSize), disk_(disk) {
     buf_ = disk->align_alloc(kSegmentSize);
     summary_ = reinterpret_cast<SegmentSummary *>(buf_);
+    block_cnt_ = 0;
   }
   ~SegmentBuilder() { free(buf_); }
+
+  uint32_t imap_size() const { return 4 + imap_.size() * 4; }
 
   void seek(const uint32_t cursor) {
     debug("SegmentBuidler: seek to " + std::to_string(cursor));
     offset_ = kSummarySize;
     cursor_ = cursor;
     occupied_bytes_ = 0;
+    block_cnt_ = 0;
   }
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
@@ -64,26 +70,34 @@ public:
     disk_->read(buf, offset, size);
   }
 
-  std::optional<uint32_t> push(const char *this_buf) {
+  std::optional<uint32_t>
+  push(const std::tuple<char *, uint32_t /* inode_idx */,
+                        uint32_t /* inode_offset */>
+           block) {
     debug("SegmentBuilder: push block at offset = " + std::to_string(offset_));
-    if (offset_ + kBlockSize >= kSegmentSize)
+    if (offset_ + kBlockSize + imap_size() >= kSegmentSize)
       return std::nullopt;
-    std::memcpy(buf_ + offset_, this_buf, kBlockSize);
+    std::memcpy(buf_ + offset_, std::get<0>(block), kBlockSize);
     auto ret = cursor_ + offset_;
     offset_ += kBlockSize;
     occupied_bytes_ += kBlockSize;
+    summary_->entries[block_cnt_][0] = ret;
+    summary_->entries[block_cnt_][1] = std::get<1>(block);
+    summary_->entries[block_cnt_][2] = std::get<2>(block);
     return ret;
   }
 
-  std::optional<uint32_t> push(const DiskInode *disk_inode) {
+  std::optional<uint32_t>
+  push(const std::pair<DiskInode *, uint32_t /* inode_idx */> inode) {
     debug("SegmentBuilder: push inode at offset = " + std::to_string(offset_));
     auto inc = sizeof(DiskInode);
-    if (offset_ + inc >= kSegmentSize)
+    if (offset_ + inc + imap_size() >= kSegmentSize)
       return std::nullopt;
-    std::memcpy(buf_ + offset_, disk_inode, inc);
+    std::memcpy(buf_ + offset_, std::get<0>(inode), inc);
     auto ret = cursor_ + offset_;
     offset_ += inc;
     occupied_bytes_ += inc;
+    imap_.push_back({ret, std::get<1>(inode)});
     return ret;
   }
 
