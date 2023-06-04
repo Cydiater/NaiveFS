@@ -37,12 +37,13 @@ class NaiveFS {
 
   void flush_cr() {
     debug("flushing checkpoint region");
-    // todo: flush seg_status_
     auto lock = std::unique_lock(lock_flushing_cr_);
     seg_mgr_->flush();
-    const char *buf = imap_->get_buf();
+    const char *imap_buf = imap_->get_buf();
+    const char *seg_buf = seg_mgr_->get_buf();
     char *newbuf = disk_->align_alloc(kCRSize);
-    memcpy(newbuf, buf, kCRSize);
+    memcpy(newbuf, imap_buf, kCRImapSize);
+    memcpy(newbuf + kCRImapSize, seg_buf, kCRSize - kCRImapSize);
     auto addr = last_cr_dest_ == CR_DEST::START ? disk_->end() - kCRSize : 0;
     last_cr_dest_ =
         last_cr_dest_ == CR_DEST::START ? CR_DEST::END : CR_DEST::START;

@@ -144,7 +144,7 @@ public:
     auto [buf, offset, imap_size] = builder_->build();
     auto idx = (offset - kCRSize) / kSegmentSize;
     seg_status_[idx].occupied_bytes = kSegmentSize - kSummarySize - imap_size;
-    // todo: fill version
+    seg_status_[idx].flushing_version = imap_->version();
     disk_->write(buf, offset, kSegmentSize);
     auto next_segment_addr = find_next_empty(offset + kSegmentSize);
     builder_->seek(next_segment_addr);
