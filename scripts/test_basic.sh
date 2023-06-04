@@ -27,5 +27,5 @@ if ps -p $NFS_PID > /dev/null; then
    kill -9 $NFS_PID
 else
    echo "nfs exited"
-   exit -1
+   exit 1
 fi
