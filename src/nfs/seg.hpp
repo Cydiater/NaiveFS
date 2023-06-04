@@ -48,6 +48,7 @@ public:
     buf_ = disk->align_alloc(kSegmentSize);
     summary_ = reinterpret_cast<SegmentSummary *>(buf_);
     block_cnt_ = 0;
+    imap_.clear();
   }
   ~SegmentBuilder() { free(buf_); }
 
@@ -58,10 +59,7 @@ public:
     offset_ = kSummarySize;
     cursor_ = cursor;
     occupied_bytes_ = 0;
-<<<<<<< HEAD
     block_cnt_ = 0;
-=======
->>>>>>> main
   }
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
