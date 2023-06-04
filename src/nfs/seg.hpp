@@ -19,6 +19,7 @@ struct SegmentSummary {
   static constexpr uint32_t INVALID_ENTRY = 0;
   static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12;
 
+  uint32_t occupied;
   uint32_t entries[MAX_ENTRIES][3];
 
   uint32_t count() const {
@@ -32,6 +33,7 @@ struct SegmentSummary {
 
 class SegmentBuilder {
   char *buf_;
+  SegmentSummary *summary_;
   uint32_t offset_;
   uint32_t cursor_;
   Disk *disk_;
@@ -40,6 +42,7 @@ public:
   SegmentBuilder(Disk *disk)
       : offset_(kSummarySize), cursor_(kCRSize), disk_(disk) {
     buf_ = disk->align_alloc(kSegmentSize);
+    summary_ = reinterpret_cast<SegmentSummary *>(buf_);
   }
   ~SegmentBuilder() { free(buf_); }
 
@@ -81,6 +84,7 @@ public:
 
   std::pair<const char *, uint32_t> build() {
     // todo: build imap and summary
+    summary_->occupied = 1;
     return {buf_, cursor_};
   }
 };
@@ -92,26 +96,31 @@ class SegmentsManager {
 
   uint32_t find_next_empty(uint32_t cursor) {
     // todo: consider warping
-    cursor += kSegmentSize;
     disk_->nread(reinterpret_cast<char *>(&current_summary_), cursor,
-                 kSummarySize);
-    if (current_summary_.count() == 0) {
+                 sizeof(SegmentSummary));
+    if (current_summary_.occupied == 0) {
       return cursor;
     }
-    return find_next_empty(cursor);
+    return find_next_empty(cursor + kSegmentSize);
   }
 
 public:
   SegmentsManager(Disk *disk)
-      : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)) {}
+      : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)) {
+    builder_->seek(find_next_empty(kCRSize));
+  }
+
+  void flush() {
+    auto [buf, offset] = builder_->build();
+    disk_->write(buf, offset, kSegmentSize);
+    auto next_segment_addr = find_next_empty(offset + kSegmentSize);
+    builder_->seek(next_segment_addr);
+  }
 
   template <typename obj_t> uint32_t push(obj_t obj) {
     auto pushed = builder_->push(obj);
     if (pushed == std::nullopt) {
-      auto [buf, offset] = builder_->build();
-      disk_->write(buf, offset, kSegmentSize);
-      auto next_segment_addr = find_next_empty(offset);
-      builder_->seek(next_segment_addr);
+      flush();
       return push(obj);
     }
     return pushed.value();

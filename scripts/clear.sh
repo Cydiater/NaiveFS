@@ -4,3 +4,4 @@ if test -d build; then
 fi
 rm -rf build
 rm -f /tmp/out.log
+rm -rf /tmp/disk

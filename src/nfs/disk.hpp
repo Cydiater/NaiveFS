@@ -5,10 +5,12 @@
 #include <string>
 #include <unistd.h>
 
+#include <fcntl.h>
+
 #include "nfs/config.hpp"
 #include "nfs/utils.hpp"
 
-/*class MemDisk {
+class MemDisk {
   char *mem_;
 
 public:
@@ -34,13 +36,13 @@ public:
     assert(offset + size < kMemDiskCapacityMB * 1024 * 1024);
     std::memcpy(mem_ + offset, buf, size);
   }
-};*/
+};
 
-class Disk {
+class FileDisk {
   int fd;
 
 public:
-  Disk(const char *_path, const uint32_t capacity) {
+  FileDisk(const char *_path, const uint32_t capacity) {
     debug("Disk " + std::string(_path));
     fd = open(_path, O_CREAT | O_DIRECT | O_NOATIME | O_RDWR, 0666);
     debug(strerror(errno));
@@ -50,7 +52,7 @@ public:
     assert(res != -1);
   }
 
-  ~Disk() { close(fd); }
+  ~FileDisk() { close(fd); }
 
   static char *align_alloc(uint32_t size) {
     char *buf;
@@ -82,7 +84,7 @@ public:
     char *newbuf;
     posix_memalign(reinterpret_cast<void **>(&newbuf), 512, rsize);
     auto res = pread(fd, newbuf, rsize, loffset);
-    assert(res != -1);
+    assert(res == rsize);
     memcpy(buf, newbuf + (offset - loffset), size);
   }
 
@@ -94,6 +96,14 @@ public:
     assert(size % 512 == 0);
     assert(offset % 512 == 0);
     auto res = pwrite(fd, buf, size, offset);
-    assert(res != -1);
+    assert(res == size);
+  }
+
+  void sync() {
+    auto ret = fdatasync(fd);
+    if (ret != 0)
+      throw DiskSyncFailed();
   }
 };
+
+using Disk = FileDisk;

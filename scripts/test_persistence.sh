@@ -16,7 +16,7 @@ ls -x
 cat foo
 cd ..
 
-kill -9 $NFS_PID
+kill $NFS_PID
 sleep 1
 
 ./nfs -d disk > test_basic.log 2>&1 &
