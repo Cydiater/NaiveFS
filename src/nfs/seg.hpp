@@ -123,6 +123,12 @@ class SegmentsManager {
     }
   }
 
+  static constexpr uint32_t get_size(const char *) { return kBlockSize; }
+
+  static constexpr uint32_t get_size(const DiskInode *) {
+    return sizeof(DiskInode);
+  }
+
 public:
   SegmentsManager(Disk *disk, Imap *imap, char *from)
       : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)),
@@ -140,6 +146,12 @@ public:
 
   const char *get_buf() { return reinterpret_cast<const char *>(seg_status_); }
 
+  static uint32_t addr2segidx(const uint32_t addr) {
+    assert(addr >= kCRSize);
+    assert(addr < kDiskCapacityGB * 1024 * 1024 * 1024 - kCRSize);
+    return (addr - kCRSize) / kSegmentSize;
+  }
+
   void flush() {
     auto [buf, offset, imap_size] = builder_->build();
     auto idx = (offset - kCRSize) / kSegmentSize;
@@ -148,6 +160,21 @@ public:
     disk_->write(buf, offset, kSegmentSize);
     auto next_segment_addr = find_next_empty(offset + kSegmentSize);
     builder_->seek(next_segment_addr);
+  }
+
+  template <typename obj_t> uint32_t push(obj_t obj, const uint32_t old_addr) {
+    if (old_addr == 0)
+      return push(obj);
+    auto idx = addr2segidx(old_addr);
+    auto new_addr = push(obj);
+    if (addr2segidx(new_addr) == idx)
+      return new_addr;
+    assert(seg_status_[idx].occupied_bytes >= get_size(obj));
+    seg_status_[idx].occupied_bytes -= get_size(obj);
+    if (seg_status_[idx].occupied_bytes == 0) {
+      free_segments_ += 1;
+    }
+    return new_addr;
   }
 
   template <typename obj_t> uint32_t push(obj_t obj) {

@@ -95,8 +95,8 @@ class Inode {
           debug("ok changed " + std::to_string(i2));
           if (indirect21 != nullptr) {
             if (dirty_1 != -1) {
-              auto addr =
-                  seg_->push(reinterpret_cast<const char *>(indirect21));
+              auto addr = seg_->push(reinterpret_cast<const char *>(indirect21),
+                                     indirect22[dirty_1]);
               indirect22[dirty_1] = addr;
               dirty_1 = -1;
             }
@@ -123,14 +123,16 @@ class Inode {
     }
     if (indirect1 != nullptr) {
       if (dirty_) {
-        auto addr = seg_->push(reinterpret_cast<const char *>(indirect1));
+        auto addr = seg_->push(reinterpret_cast<const char *>(indirect1),
+                               disk_inode_->indirect1);
         disk_inode_->indirect1 = addr;
       }
       delete[] indirect1;
     }
     if (indirect21 != nullptr) {
       if (dirty_1 != -1) {
-        auto addr = seg_->push(reinterpret_cast<const char *>(indirect21));
+        auto addr = seg_->push(reinterpret_cast<const char *>(indirect21),
+                               indirect22[dirty_1]);
         debug("write back 21 " + std::to_string(addr));
         indirect22[dirty_1] = addr;
       }
@@ -138,7 +140,8 @@ class Inode {
     }
     if (indirect22 != nullptr) {
       if (dirty_) {
-        auto addr = seg_->push(reinterpret_cast<const char *>(indirect22));
+        auto addr = seg_->push(reinterpret_cast<const char *>(indirect22),
+                               disk_inode_->indirect2);
         debug("write back 22 " + std::to_string(addr));
         disk_inode_->indirect2 = addr;
       }
@@ -199,20 +202,17 @@ public:
     for_each_block(offset, size,
                    [&buf, this](const uint32_t addr, const uint32_t this_offset,
                                 const uint32_t this_size) {
-                     debug("callback " + std::to_string(addr) + " " +
-                           std::to_string(this_offset) + " " +
-                           std::to_string(this_size));
                      if (this_size == kBlockSize) {
                        assert(this_offset == 0);
-                       auto new_addr = seg_->push(buf);
+                       auto new_addr = seg_->push(buf, addr);
                        buf += kBlockSize;
                        return new_addr;
                      }
-                     auto this_buf = new char[kBlockSize];
+                     auto this_buf = Disk::align_alloc(kBlockSize);
                      if (addr >= kCRSize)
                        seg_->read(this_buf, addr, kBlockSize);
                      std::memcpy(this_buf + this_offset, buf, this_size);
-                     auto new_addr = seg_->push(this_buf);
+                     auto new_addr = seg_->push(this_buf, addr);
                      delete[] this_buf;
                      buf += this_size;
                      return new_addr;
