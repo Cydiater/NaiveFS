@@ -106,7 +106,15 @@ public:
     return: [buffer, offset, occupied_bytes]
    */
   std::tuple<const char *, uint32_t, uint32_t> build() {
-    // todo: build imap and summary
+    auto ptr = buf_ + kSegmentSize - 4;
+    uint32_t len = imap_.size();
+    std::memcpy(ptr, &len, 4);
+    ptr -= 4;
+    for (uint32_t i = 0; i < len; i++) {
+      ptr -= 8;
+      std::memcpy(ptr, &imap_[i].first, 4);
+      std::memcpy(ptr + 4, &imap_[i].second, 4);
+    }
     return {buf_, cursor_, occupied_bytes_};
   }
 };
