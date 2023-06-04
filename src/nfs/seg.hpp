@@ -38,10 +38,7 @@ class SegmentBuilder {
   uint32_t offset_;
   uint32_t cursor_;
   uint32_t occupied_bytes_;
-<<<<<<< HEAD
   uint32_t block_cnt_;
-=======
->>>>>>> main
   Disk *disk_;
   std::vector<std::pair<uint32_t /* inode_idx */, uint32_t /* addr */>> imap_;
 
