@@ -94,7 +94,7 @@ class SegmentsManager {
     // todo: consider warping
     cursor += kSegmentSize;
     disk_->nread(reinterpret_cast<char *>(&current_summary_), cursor,
-                kSummarySize);
+                 kSummarySize);
     if (current_summary_.count() == 0) {
       return cursor;
     }

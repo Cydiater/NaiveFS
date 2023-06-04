@@ -38,9 +38,9 @@ public:
 
 class Disk {
   int fd;
-  
+
 public:
-  Disk(const char * _path, const uint32_t capacity) {
+  Disk(const char *_path, const uint32_t capacity) {
     debug("Disk " + std::string(_path));
     fd = open(_path, O_CREAT | O_DIRECT | O_NOATIME | O_RDWR, 0666);
     debug(strerror(errno));
@@ -52,10 +52,9 @@ public:
 
   ~Disk() { close(fd); }
 
-  static char *align_alloc(uint32_t size)
-  {
+  static char *align_alloc(uint32_t size) {
     char *buf;
-    posix_memalign(reinterpret_cast<void**>(&buf), 512, size);
+    posix_memalign(reinterpret_cast<void **>(&buf), 512, size);
     return buf;
   }
 
@@ -64,12 +63,12 @@ public:
   void read(char *buf, const uint32_t offset, const uint32_t size) {
     if (size <= 4 * kBlockSize) {
       nread(buf, offset, size);
-      return ;
+      return;
     }
     debug("Disk read [" + std::to_string(offset) + ", " +
           std::to_string(offset + size) + ")");
     assert(offset + size <= end());
-    assert((size_t) buf % 512 == 0);
+    assert((size_t)buf % 512 == 0);
     assert(offset % 512 == 0);
     auto res = pread(fd, buf, size, offset);
     assert(res != -1);
@@ -81,7 +80,7 @@ public:
     uint32_t loffset = offset / 512 * 512;
     uint32_t rsize = ((size + (offset - loffset)) + 511) / 512 * 512;
     char *newbuf;
-    posix_memalign(reinterpret_cast<void**>(&newbuf), 512, rsize);
+    posix_memalign(reinterpret_cast<void **>(&newbuf), 512, rsize);
     auto res = pread(fd, newbuf, rsize, loffset);
     assert(res != -1);
     memcpy(buf, newbuf + (offset - loffset), size);
@@ -91,11 +90,10 @@ public:
     debug("Disk write [" + std::to_string(offset) + ", " +
           std::to_string(offset + size) + ")");
     assert(offset + size <= end());
-    assert((size_t) buf % 512 == 0);
+    assert((size_t)buf % 512 == 0);
     assert(size % 512 == 0);
     assert(offset % 512 == 0);
     auto res = pwrite(fd, buf, size, offset);
     assert(res != -1);
   }
-
 };
