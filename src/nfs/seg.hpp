@@ -38,7 +38,10 @@ class SegmentBuilder {
   uint32_t offset_;
   uint32_t cursor_;
   uint32_t occupied_bytes_;
+<<<<<<< HEAD
   uint32_t block_cnt_;
+=======
+>>>>>>> main
   Disk *disk_;
   std::vector<std::pair<uint32_t /* inode_idx */, uint32_t /* addr */>> imap_;
 
@@ -58,7 +61,10 @@ public:
     offset_ = kSummarySize;
     cursor_ = cursor;
     occupied_bytes_ = 0;
+<<<<<<< HEAD
     block_cnt_ = 0;
+=======
+>>>>>>> main
   }
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
