@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
+#include <string>
 #include <thread>
 
 #include "nfs/config.hpp"
@@ -35,14 +36,19 @@ class NaiveFS {
   std::unique_ptr<std::thread> bg_thread_;
 
   void flush_cr() {
+    debug("flushing checkpoint region");
     auto lock = std::unique_lock(lock_flushing_cr_);
+    seg_mgr_->flush();
     const char *buf = imap_->get_buf();
     char *newbuf = disk_->align_alloc(kCRSize);
-    memcpy(newbuf, buf, sizeof(kCRSize));
+    memcpy(newbuf, buf, kCRSize);
     auto addr = last_cr_dest_ == CR_DEST::START ? disk_->end() - kCRSize : 0;
     last_cr_dest_ =
         last_cr_dest_ == CR_DEST::START ? CR_DEST::END : CR_DEST::START;
     disk_->write(newbuf, addr, kCRSize);
+    disk_->sync();
+    debug("flushed with version = " + std::to_string(imap_->version()) +
+          " count = " + std::to_string(imap_->count()));
   }
 
   // running in a seperate thread
@@ -66,14 +72,14 @@ public:
     // non-aligned read
     auto imap1_ = std::make_unique<Imap>(buf_start);
     auto imap2_ = std::make_unique<Imap>(buf_end);
-    debug("imap version1 = " + std::to_string(imap1_->version()));
-    debug("imap version2 = " + std::to_string(imap2_->version()));
     if (imap1_->version() > imap2_->version()) {
       imap_.swap(imap1_);
       last_cr_dest_ = CR_DEST::START;
+      debug("use left CR");
     } else {
       imap_.swap(imap2_);
       last_cr_dest_ = CR_DEST::END;
+      debug("use right CR");
     }
     if (imap_->count() == 0) {
       auto root_inode = DiskInode::make_dir();
@@ -188,6 +194,7 @@ public:
     auto disk_inode = std::make_unique<DiskInode>();
     seg_mgr_->read(reinterpret_cast<char *>(disk_inode.get()), inode_addr,
                    sizeof(DiskInode));
+    assert(disk_inode->link_cnt != 0);
     return disk_inode;
   }
 

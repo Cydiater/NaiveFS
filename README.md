@@ -7,6 +7,12 @@
 
 ## 测试
 
+### 重设运行环境
+
+```bash
+sh scripts/clear.sh
+```
+
 ### Linux 环境测试
 
 ```bash
