@@ -4,11 +4,13 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <thread>
 #include <vector>
 
 #include "nfs/config.hpp"
 #include "nfs/disk.hpp"
 #include "nfs/disk_inode.hpp"
+#include "nfs/imap.hpp"
 #include "nfs/utils.hpp"
 
 /*
@@ -17,9 +19,13 @@
 
 struct SegmentSummary {
   static constexpr uint32_t INVALID_ENTRY = 0;
-  static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12;
+  static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12 - 1;
 
+  /* bytes used in this segment, to be updated in every pass */
   uint32_t occupied;
+  /* version of ckpt when flushing this segment */
+  uint32_t version;
+  uint32_t _pad = 0;
   uint32_t entries[MAX_ENTRIES][3];
 
   uint32_t count() const {
@@ -93,6 +99,8 @@ class SegmentsManager {
   Disk *disk_;
   std::unique_ptr<SegmentBuilder> builder_;
   SegmentSummary current_summary_;
+  Imap *imap_;
+  std::unique_ptr<std::thread> bg_thread_;
 
   uint32_t find_next_empty(uint32_t cursor) {
     // todo: consider warping
@@ -104,10 +112,20 @@ class SegmentsManager {
     return find_next_empty(cursor + kSegmentSize);
   }
 
+  // running in a seperate thread
+  void background() {
+    // 1. check scan queue
+    // 2. check free segements
+    // 3. if gc required, perform gc
+  }
+
 public:
-  SegmentsManager(Disk *disk)
-      : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)) {
+  SegmentsManager(Disk *disk, Imap *imap)
+      : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)),
+        imap_(imap) {
     builder_->seek(find_next_empty(kCRSize));
+    bg_thread_ =
+        std::make_unique<std::thread>(&SegmentsManager::background, this);
   }
 
   void flush() {

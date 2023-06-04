@@ -23,6 +23,6 @@ constexpr uint32_t kSummarySize = 128;
 
 constexpr uint32_t kBlockSize = 4 * 1024;
 constexpr uint32_t kSegmentSize = 512 * 1024;
-constexpr uint32_t kSummarySize = 1024;
+constexpr uint32_t kSummarySize = 2048;
 
 #endif

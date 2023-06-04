@@ -62,7 +62,6 @@ class NaiveFS {
 public:
   NaiveFS()
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
-        seg_mgr_(std::make_unique<SegmentsManager>(disk_.get())),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
     char *buf_start = new char[kCRSize];
@@ -86,6 +85,7 @@ public:
       auto addr = seg_mgr_->push(root_inode.get());
       imap_->update(id_mgr_->root_inode_idx, addr);
     }
+    seg_mgr_ = std::make_unique<SegmentsManager>(disk_.get(), imap_.get());
     bg_thread_ = std::make_unique<std::thread>(&NaiveFS::background, this);
   }
 
