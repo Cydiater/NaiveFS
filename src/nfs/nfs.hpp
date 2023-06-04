@@ -39,9 +39,11 @@ class NaiveFS {
     debug("flushing checkpoint region");
     auto lock = std::unique_lock(lock_flushing_cr_);
     seg_mgr_->flush();
-    const char *buf = imap_->get_buf();
+    const char *imap_buf = imap_->get_buf();
+    const char *seg_buf = seg_mgr_->get_buf();
     char *newbuf = disk_->align_alloc(kCRSize);
-    memcpy(newbuf, buf, kCRSize);
+    memcpy(newbuf, imap_buf, kCRImapSize);
+    memcpy(newbuf + kCRImapSize, seg_buf, kCRSize - kCRImapSize);
     auto addr = last_cr_dest_ == CR_DEST::START ? disk_->end() - kCRSize : 0;
     last_cr_dest_ =
         last_cr_dest_ == CR_DEST::START ? CR_DEST::END : CR_DEST::START;
@@ -62,25 +64,29 @@ class NaiveFS {
 public:
   NaiveFS()
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
-        seg_mgr_(std::make_unique<SegmentsManager>(disk_.get())),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
-    char *buf_start = new char[kCRSize];
-    char *buf_end = new char[kCRSize];
-    disk_->nread(buf_start, 0, kCRSize);
-    disk_->nread(buf_end, disk_->end() - kCRSize, kCRSize);
-    // non-aligned read
+    char *buf_start = Disk::align_alloc(kCRImapSize);
+    char *buf_end = Disk::align_alloc(kCRImapSize);
+    char *buf_seg_status = Disk::align_alloc(kMaxSegments * 8);
+    disk_->read(buf_start, 0, kCRImapSize);
+    disk_->read(buf_end, disk_->end() - kCRSize, kCRImapSize);
     auto imap1_ = std::make_unique<Imap>(buf_start);
     auto imap2_ = std::make_unique<Imap>(buf_end);
     if (imap1_->version() > imap2_->version()) {
       imap_.swap(imap1_);
       last_cr_dest_ = CR_DEST::START;
+      disk_->read(buf_seg_status, kCRImapSize, kMaxSegments * 8);
       debug("use left CR");
     } else {
       imap_.swap(imap2_);
       last_cr_dest_ = CR_DEST::END;
+      disk_->read(buf_seg_status, disk_->end() - kCRSize + kCRImapSize,
+                  kMaxSegments * 8);
       debug("use right CR");
     }
+    seg_mgr_ = std::make_unique<SegmentsManager>(disk_.get(), imap_.get(),
+                                                 buf_seg_status);
     if (imap_->count() == 0) {
       auto root_inode = DiskInode::make_dir();
       auto addr = seg_mgr_->push(root_inode.get());

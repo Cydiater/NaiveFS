@@ -4,11 +4,13 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <thread>
 #include <vector>
 
 #include "nfs/config.hpp"
 #include "nfs/disk.hpp"
 #include "nfs/disk_inode.hpp"
+#include "nfs/imap.hpp"
 #include "nfs/utils.hpp"
 
 /*
@@ -19,7 +21,6 @@ struct SegmentSummary {
   static constexpr uint32_t INVALID_ENTRY = 0;
   static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12;
 
-  uint32_t occupied;
   uint32_t entries[MAX_ENTRIES][3];
 
   uint32_t count() const {
@@ -36,6 +37,7 @@ class SegmentBuilder {
   SegmentSummary *summary_;
   uint32_t offset_;
   uint32_t cursor_;
+  uint32_t occupied_bytes_;
   Disk *disk_;
 
 public:
@@ -50,6 +52,7 @@ public:
     debug("SegmentBuidler: seek to " + std::to_string(cursor));
     offset_ = kSummarySize;
     cursor_ = cursor;
+    occupied_bytes_ = 0;
   }
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
@@ -68,6 +71,7 @@ public:
     std::memcpy(buf_ + offset_, this_buf, kBlockSize);
     auto ret = cursor_ + offset_;
     offset_ += kBlockSize;
+    occupied_bytes_ += kBlockSize;
     return ret;
   }
 
@@ -79,42 +83,102 @@ public:
     std::memcpy(buf_ + offset_, disk_inode, inc);
     auto ret = cursor_ + offset_;
     offset_ += inc;
+    occupied_bytes_ += inc;
     return ret;
   }
 
-  std::pair<const char *, uint32_t> build() {
+  /*
+    return: [buffer, offset, occupied_bytes]
+   */
+  std::tuple<const char *, uint32_t, uint32_t> build() {
     // todo: build imap and summary
-    summary_->occupied = 1;
-    return {buf_, cursor_};
+    return {buf_, cursor_, occupied_bytes_};
   }
 };
 
 class SegmentsManager {
   Disk *disk_;
   std::unique_ptr<SegmentBuilder> builder_;
-  SegmentSummary current_summary_;
+  Imap *imap_;
+  std::unique_ptr<std::thread> bg_thread_;
+
+  struct SegmentStatus {
+    uint32_t flushing_version;
+    uint32_t occupied_bytes;
+  } * seg_status_;
+  uint32_t free_segments_;
 
   uint32_t find_next_empty(uint32_t cursor) {
-    // todo: consider warping
-    disk_->nread(reinterpret_cast<char *>(&current_summary_), cursor,
-                 sizeof(SegmentSummary));
-    if (current_summary_.occupied == 0) {
-      return cursor;
+    while (true) {
+      auto idx = (cursor - kCRSize) / kSegmentSize;
+      if (seg_status_[idx].occupied_bytes == 0) {
+        return cursor;
+      }
+      cursor += kSegmentSize;
+      // todo: consider warping
     }
-    return find_next_empty(cursor + kSegmentSize);
+  }
+
+  // running in a seperate thread
+  void background() {
+    while (true) {
+      std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
+      // todo
+    }
+  }
+
+  static constexpr uint32_t get_size(const char *) { return kBlockSize; }
+
+  static constexpr uint32_t get_size(const DiskInode *) {
+    return sizeof(DiskInode);
   }
 
 public:
-  SegmentsManager(Disk *disk)
-      : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)) {
+  SegmentsManager(Disk *disk, Imap *imap, char *from)
+      : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)),
+        imap_(imap), seg_status_(reinterpret_cast<SegmentStatus *>(from)) {
+    free_segments_ = 0;
+    for (uint32_t i = 0; i < kMaxSegments; i++) {
+      free_segments_ += seg_status_[i].occupied_bytes == 0;
+    }
     builder_->seek(find_next_empty(kCRSize));
+    bg_thread_ =
+        std::make_unique<std::thread>(&SegmentsManager::background, this);
+  }
+
+  ~SegmentsManager() { delete[] seg_status_; }
+
+  const char *get_buf() { return reinterpret_cast<const char *>(seg_status_); }
+
+  static uint32_t addr2segidx(const uint32_t addr) {
+    assert(addr >= kCRSize);
+    assert(addr < kDiskCapacityGB * 1024 * 1024 * 1024 - kCRSize);
+    return (addr - kCRSize) / kSegmentSize;
   }
 
   void flush() {
-    auto [buf, offset] = builder_->build();
+    auto [buf, offset, occupied_bytes] = builder_->build();
+    auto idx = (offset - kCRSize) / kSegmentSize;
+    seg_status_[idx].occupied_bytes = occupied_bytes;
+    seg_status_[idx].flushing_version = imap_->version();
     disk_->write(buf, offset, kSegmentSize);
     auto next_segment_addr = find_next_empty(offset + kSegmentSize);
     builder_->seek(next_segment_addr);
+  }
+
+  template <typename obj_t> uint32_t push(obj_t obj, const uint32_t old_addr) {
+    if (old_addr == 0)
+      return push(obj);
+    auto idx = addr2segidx(old_addr);
+    auto new_addr = push(obj);
+    if (addr2segidx(new_addr) == idx)
+      return new_addr;
+    assert(seg_status_[idx].occupied_bytes >= get_size(obj));
+    seg_status_[idx].occupied_bytes -= get_size(obj);
+    if (seg_status_[idx].occupied_bytes == 0) {
+      free_segments_ += 1;
+    }
+    return new_addr;
   }
 
   template <typename obj_t> uint32_t push(obj_t obj) {
