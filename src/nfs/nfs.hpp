@@ -37,6 +37,7 @@ class NaiveFS {
 
   void flush_cr() {
     debug("flushing checkpoint region");
+    // todo: flush seg_status_
     auto lock = std::unique_lock(lock_flushing_cr_);
     seg_mgr_->flush();
     const char *buf = imap_->get_buf();
@@ -64,20 +65,24 @@ public:
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
-    char *buf_start = new char[kCRSize];
-    char *buf_end = new char[kCRSize];
-    disk_->nread(buf_start, 0, kCRSize);
-    disk_->nread(buf_end, disk_->end() - kCRSize, kCRSize);
+    char *buf_start = new char[kCRImapSize];
+    char *buf_end = new char[kCRImapSize];
+    char *buf_seg_status = new char[kMaxSegments * 8];
+    disk_->nread(buf_start, 0, kCRImapSize);
+    disk_->nread(buf_end, disk_->end() - kCRSize, kCRImapSize);
     // non-aligned read
     auto imap1_ = std::make_unique<Imap>(buf_start);
     auto imap2_ = std::make_unique<Imap>(buf_end);
     if (imap1_->version() > imap2_->version()) {
       imap_.swap(imap1_);
       last_cr_dest_ = CR_DEST::START;
+      disk_->read(buf_seg_status, kCRImapSize, kMaxSegments * 8);
       debug("use left CR");
     } else {
       imap_.swap(imap2_);
       last_cr_dest_ = CR_DEST::END;
+      disk_->read(buf_seg_status, disk_->end() - kCRSize + kCRImapSize,
+                  kMaxSegments * 8);
       debug("use right CR");
     }
     if (imap_->count() == 0) {
@@ -85,7 +90,8 @@ public:
       auto addr = seg_mgr_->push(root_inode.get());
       imap_->update(id_mgr_->root_inode_idx, addr);
     }
-    seg_mgr_ = std::make_unique<SegmentsManager>(disk_.get(), imap_.get());
+    seg_mgr_ = std::make_unique<SegmentsManager>(disk_.get(), imap_.get(),
+                                                 buf_seg_status);
     bg_thread_ = std::make_unique<std::thread>(&NaiveFS::background, this);
   }
 

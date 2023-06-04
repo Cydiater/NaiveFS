@@ -19,13 +19,8 @@
 
 struct SegmentSummary {
   static constexpr uint32_t INVALID_ENTRY = 0;
-  static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12 - 1;
+  static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12;
 
-  /* bytes used in this segment, to be updated in every pass */
-  uint32_t occupied;
-  /* version of ckpt when flushing this segment */
-  uint32_t version;
-  uint32_t _pad = 0;
   uint32_t entries[MAX_ENTRIES][3];
 
   uint32_t count() const {
@@ -88,48 +83,68 @@ public:
     return ret;
   }
 
-  std::pair<const char *, uint32_t> build() {
+  /*
+    return: [buffer, offset, imap_size]
+   */
+  std::tuple<const char *, uint32_t, uint32_t> build() {
     // todo: build imap and summary
-    summary_->occupied = 1;
-    return {buf_, cursor_};
+    return {buf_, cursor_, 0};
   }
 };
 
 class SegmentsManager {
   Disk *disk_;
   std::unique_ptr<SegmentBuilder> builder_;
-  SegmentSummary current_summary_;
   Imap *imap_;
   std::unique_ptr<std::thread> bg_thread_;
 
+  struct SegmentStatus {
+    uint32_t flushing_version;
+    uint32_t occupied_bytes;
+  } * seg_status_;
+  uint32_t free_segments_;
+
   uint32_t find_next_empty(uint32_t cursor) {
-    // todo: consider warping
-    disk_->nread(reinterpret_cast<char *>(&current_summary_), cursor,
-                 sizeof(SegmentSummary));
-    if (current_summary_.occupied == 0) {
-      return cursor;
+    while (true) {
+      auto idx = (cursor - kCRSize) / kSegmentSize;
+      if (seg_status_[idx].occupied_bytes == 0) {
+        return cursor;
+      }
+      cursor += kSegmentSize;
+      // todo: consider warping
     }
-    return find_next_empty(cursor + kSegmentSize);
   }
 
   // running in a seperate thread
   void background() {
-    // 1. check scan queue
-    // 2. check free segements
-    // 3. if gc required, perform gc
+    while (true) {
+      std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
+      // todo
+    }
   }
 
 public:
-  SegmentsManager(Disk *disk, Imap *imap)
+  SegmentsManager(Disk *disk, Imap *imap, char *from)
       : disk_(disk), builder_(std::make_unique<SegmentBuilder>(disk)),
-        imap_(imap) {
+        imap_(imap), seg_status_(reinterpret_cast<SegmentStatus *>(from)) {
+    free_segments_ = 0;
+    for (uint32_t i = 0; i < kMaxSegments; i++) {
+      free_segments_ += seg_status_[i].occupied_bytes == 0;
+    }
     builder_->seek(find_next_empty(kCRSize));
     bg_thread_ =
         std::make_unique<std::thread>(&SegmentsManager::background, this);
   }
 
+  ~SegmentsManager() { delete[] seg_status_; }
+
+  const char *get_buf() { return reinterpret_cast<const char *>(seg_status_); }
+
   void flush() {
-    auto [buf, offset] = builder_->build();
+    auto [buf, offset, imap_size] = builder_->build();
+    auto idx = (offset - kCRSize) / kSegmentSize;
+    seg_status_[idx].occupied_bytes = kSegmentSize - kSummarySize - imap_size;
+    // todo: fill version
     disk_->write(buf, offset, kSegmentSize);
     auto next_segment_addr = find_next_empty(offset + kSegmentSize);
     builder_->seek(next_segment_addr);
