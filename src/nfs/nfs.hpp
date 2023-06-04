@@ -66,12 +66,11 @@ public:
       : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
-    char *buf_start = new char[kCRImapSize];
-    char *buf_end = new char[kCRImapSize];
-    char *buf_seg_status = new char[kMaxSegments * 8];
-    disk_->nread(buf_start, 0, kCRImapSize);
-    disk_->nread(buf_end, disk_->end() - kCRSize, kCRImapSize);
-    // non-aligned read
+    char *buf_start = Disk::align_alloc(kCRImapSize);
+    char *buf_end = Disk::align_alloc(kCRImapSize);
+    char *buf_seg_status = Disk::align_alloc(kMaxSegments * 8);
+    disk_->read(buf_start, 0, kCRImapSize);
+    disk_->read(buf_end, disk_->end() - kCRSize, kCRImapSize);
     auto imap1_ = std::make_unique<Imap>(buf_start);
     auto imap2_ = std::make_unique<Imap>(buf_end);
     if (imap1_->version() > imap2_->version()) {
@@ -86,13 +85,13 @@ public:
                   kMaxSegments * 8);
       debug("use right CR");
     }
+    seg_mgr_ = std::make_unique<SegmentsManager>(disk_.get(), imap_.get(),
+                                                 buf_seg_status);
     if (imap_->count() == 0) {
       auto root_inode = DiskInode::make_dir();
       auto addr = seg_mgr_->push(root_inode.get());
       imap_->update(id_mgr_->root_inode_idx, addr);
     }
-    seg_mgr_ = std::make_unique<SegmentsManager>(disk_.get(), imap_.get(),
-                                                 buf_seg_status);
     bg_thread_ = std::make_unique<std::thread>(&NaiveFS::background, this);
   }
 
