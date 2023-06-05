@@ -16,6 +16,11 @@ struct DiskInode {
   uint32_t directs[kInodeDirectCnt];
   uint32_t indirect1, indirect2;
 
+  static constexpr uint32_t INVALID_ADDR = 0;
+  static constexpr uint32_t TEMPORARY_ADDR =
+      std::numeric_limits<uint32_t>::max();
+  static constexpr uint32_t INVALID_INDIRECT_IDX = 4095;
+
   static std::unique_ptr<DiskInode> make() {
     auto disk_inode = std::make_unique<DiskInode>();
     auto instant = time(nullptr);
@@ -25,8 +30,9 @@ struct DiskInode {
     disk_inode->uid = getuid();
     disk_inode->gid = getgid();
     disk_inode->link_cnt = 1;
-    std::memset(disk_inode->directs, 0, sizeof(disk_inode->directs));
-    disk_inode->indirect1 = disk_inode->indirect2 = 0;
+    for (uint32_t i = 0; i < kInodeDirectCnt; i++)
+      disk_inode->directs[i] = INVALID_ADDR;
+    disk_inode->indirect1 = disk_inode->indirect2 = INVALID_ADDR;
     return disk_inode;
   }
 
@@ -56,8 +62,8 @@ struct DiskInode {
     if (offset < base2)
       return {kInodeDirectCnt, (offset - base1) / kBlockSize, 0};
     return {kInodeDirectCnt + 1,
-            ((offset - base2) / kBlockSize) % (kBlockSize / 4),
-            (offset - base2) / kBlockSize / (kBlockSize / 4)};
+            (offset - base2) / kBlockSize / (kBlockSize / 4),
+            ((offset - base2) / kBlockSize) % (kBlockSize / 4)};
   }
 
   static uint32_t encode(const uint32_t i0) {

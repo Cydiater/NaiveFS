@@ -52,7 +52,7 @@ public:
   }
   ~SegmentBuilder() { free(buf_); }
 
-  uint32_t imap_size() const { return 4 + imap_.size() * 4; }
+  uint32_t imap_size() const { return 4 + imap_.size() * 8; }
 
   void seek(const uint32_t cursor) {
     debug("SegmentBuidler: seek to " + std::to_string(cursor));
@@ -75,8 +75,7 @@ public:
   push(const std::tuple<char *, uint32_t /* inode_idx */,
                         uint32_t /* inode_offset */>
            block) {
-    debug("SegmentBuilder: push block at offset = " + std::to_string(offset_));
-    if (offset_ + kBlockSize + imap_size() >= kSegmentSize)
+    if (offset_ + kBlockSize + imap_size() > kSegmentSize)
       return std::nullopt;
     std::memcpy(buf_ + offset_, std::get<0>(block), kBlockSize);
     auto ret = cursor_ + offset_;
@@ -90,9 +89,8 @@ public:
 
   std::optional<uint32_t>
   push(const std::pair<DiskInode *, uint32_t /* inode_idx */> inode) {
-    debug("SegmentBuilder: push inode at offset = " + std::to_string(offset_));
     auto inc = sizeof(DiskInode);
-    if (offset_ + inc + imap_size() >= kSegmentSize)
+    if (offset_ + inc + imap_size() + 8 > kSegmentSize)
       return std::nullopt;
     std::memcpy(buf_ + offset_, std::get<0>(inode), inc);
     auto ret = cursor_ + offset_;
@@ -109,7 +107,6 @@ public:
     auto ptr = buf_ + kSegmentSize - 4;
     uint32_t len = imap_.size();
     std::memcpy(ptr, &len, 4);
-    ptr -= 4;
     for (uint32_t i = 0; i < len; i++) {
       ptr -= 8;
       std::memcpy(ptr, &imap_[i].first, 4);
@@ -190,7 +187,7 @@ public:
   }
 
   template <typename obj_t> uint32_t push(obj_t obj, const uint32_t old_addr) {
-    if (old_addr == 0)
+    if (old_addr == DiskInode::INVALID_ADDR)
       return push(obj);
     auto idx = addr2segidx(old_addr);
     auto new_addr = push(obj);
