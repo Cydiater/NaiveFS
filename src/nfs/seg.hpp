@@ -196,8 +196,8 @@ public:
     auto new_addr = push(obj);
     if (addr2segidx(new_addr) == idx)
       return new_addr;
-    assert(seg_status_[idx].occupied_bytes >= get_size(obj));
-    seg_status_[idx].occupied_bytes -= get_size(obj);
+    assert(seg_status_[idx].occupied_bytes >= get_size(std::get<0>(obj)));
+    seg_status_[idx].occupied_bytes -= get_size(std::get<0>(obj));
     if (seg_status_[idx].occupied_bytes == 0) {
       free_segments_ += 1;
     }

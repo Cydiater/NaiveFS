@@ -89,8 +89,9 @@ public:
                                                  buf_seg_status);
     if (imap_->count() == 0) {
       auto root_inode = DiskInode::make_dir();
-      auto addr = seg_mgr_->push(root_inode.get());
-      imap_->update(id_mgr_->root_inode_idx, addr);
+      auto addr = seg_mgr_->push(
+          std::make_pair(root_inode.get(), IDManager::root_inode_idx));
+      imap_->update(IDManager::root_inode_idx, addr);
     }
     bg_thread_ = std::make_unique<std::thread>(&NaiveFS::background, this);
   }
@@ -114,13 +115,15 @@ public:
       return fd;
     }
     auto this_disk_inode = DiskInode::make_file();
-    auto this_dinode_addr = seg_mgr_->push(this_disk_inode.get());
     auto this_inode_idx = id_mgr_->allocate();
+    auto this_dinode_addr =
+        seg_mgr_->push(std::make_pair(this_disk_inode.get(), this_inode_idx));
     imap_->update(this_inode_idx, this_dinode_addr);
     debug("open this_inode_idx = " + std::to_string(this_inode_idx));
     auto nv_parent_disk_inode = parent_inode->push(name, this_inode_idx);
-    auto nv_parent_dinode_addr =
-        seg_mgr_->push(nv_parent_disk_inode.get(), parent_dinode_addr);
+    auto nv_parent_dinode_addr = seg_mgr_->push(
+        std::make_pair(nv_parent_disk_inode.get(), parent_inode_idx),
+        parent_dinode_addr);
     imap_->update(parent_inode_idx, nv_parent_dinode_addr);
     auto fd = fd_mgr_->allocate(this_inode_idx);
     return fd;
@@ -149,7 +152,8 @@ public:
     if (nv_parent_disk_inode == nullptr) {
       throw NoEntry();
     }
-    auto nv_parent_dinode_addr = seg_mgr_->push(nv_parent_disk_inode.get());
+    auto nv_parent_dinode_addr = seg_mgr_->push(
+        std::make_pair(nv_parent_disk_inode.get(), parent_inode_idx));
     imap_->update(parent_inode_idx, nv_parent_dinode_addr);
   }
 
@@ -169,7 +173,8 @@ public:
     auto dinode_addr = imap_->get(inode_idx);
     auto inode = get_inode(inode_idx);
     auto disk_inode = inode->write(buf, offset, size);
-    auto new_addr = seg_mgr_->push(disk_inode.get(), dinode_addr);
+    auto new_addr = seg_mgr_->push(std::make_pair(disk_inode.get(), inode_idx),
+                                   dinode_addr);
     imap_->update(inode_idx, new_addr);
   }
 
@@ -212,7 +217,8 @@ private:
     auto disk_inode = get_diskinode(inode_idx);
     if (disk_inode == nullptr)
       return nullptr;
-    auto inode = std::make_unique<Inode>(std::move(disk_inode), seg_mgr_.get());
+    auto inode = std::make_unique<Inode>(std::move(disk_inode), seg_mgr_.get(),
+                                         inode_idx);
     return inode;
   }
 };

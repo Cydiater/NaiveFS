@@ -59,4 +59,19 @@ struct DiskInode {
             ((offset - base2) / kBlockSize) % (kBlockSize / 4),
             (offset - base2) / kBlockSize / (kBlockSize / 4)};
   }
+
+  static uint32_t encode(const uint32_t i0) {
+    auto this_i0 = i0 & ((1 << 5) - 1);
+    assert(this_i0 == i0);
+    return this_i0;
+  }
+
+  static uint32_t encode(const uint32_t i0, const uint32_t i1) {
+    // todo
+  }
+
+  static uint32_t encode(const uint32_t i0, const uint32_t i1,
+                         const uint32_t i2) {
+    // todo
+  }
 };

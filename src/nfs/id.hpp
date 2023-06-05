@@ -8,7 +8,7 @@ class IDManager {
   std::atomic<uint32_t> cur_idx;
 
 public:
-  static const uint32_t root_inode_idx = 0;
+  static constexpr uint32_t root_inode_idx = 0;
 
   IDManager() { cur_idx = root_inode_idx; }
 
