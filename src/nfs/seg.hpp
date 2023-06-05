@@ -10,7 +10,6 @@
 #include <optional>
 #include <set>
 #include <shared_mutex>
-#include <thread>
 #include <vector>
 
 #include "nfs/config.hpp"
@@ -130,7 +129,6 @@ class SegmentsManager {
   Disk *disk_;
   std::unique_ptr<SegmentBuilder> builder_;
   Imap *imap_;
-  std::unique_ptr<std::thread> bg_thread_;
   std::shared_mutex lock_seg_status_;
 
   struct SegmentStatus {
@@ -150,54 +148,6 @@ class SegmentsManager {
     }
   }
 
-  // running in a seperate thread
-  void background() {
-    while (true) {
-      std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
-      if (free_segments_ >= kFreeSegmentsLowerbound)
-        continue;
-      std::vector<uint32_t> candidate_seg_indices;
-      {
-        auto lock = std::shared_lock(lock_seg_status_);
-        auto cmp = [&](const uint32_t lhs, const uint32_t rhs) {
-          if (seg_status_[lhs].occupied_bytes == 0)
-            return false;
-          if (seg_status_[rhs].occupied_bytes == 0)
-            return true;
-          auto lhs_value = seg_status_[lhs].occupied_bytes *
-                           seg_status_[lhs].flushing_version;
-          auto rhs_value = seg_status_[rhs].occupied_bytes *
-                           seg_status_[rhs].flushing_version;
-          return lhs_value < rhs_value;
-        };
-        std::set<uint32_t, decltype(cmp)> heap;
-        for (uint32_t i = 0; i < kMaxSegments; i++) {
-          heap.insert(i);
-          if (heap.size() > kNumMergingSegments)
-            heap.erase(--heap.end());
-        }
-        candidate_seg_indices = std::vector<uint32_t>{heap.begin(), heap.end()};
-      }
-      std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
-          ds_by_inode_idx;
-      auto seg_buf = Disk::align_alloc(kSummarySize);
-      auto summary = reinterpret_cast<SegmentSummary *>(seg_buf);
-      for (auto seg_idx : candidate_seg_indices) {
-        auto addr = kCRSize + seg_idx * kSegmentSize;
-        disk_->read(seg_buf, addr, kSummarySize);
-        summary->for_each_entry([&](const uint32_t addr,
-                                    const uint32_t inode_idx,
-                                    const uint32_t code) {
-          ds_by_inode_idx[inode_idx].push_back({addr, code});
-        });
-      }
-      for (const auto &[inode_idx, addr_and_code_list] : ds_by_inode_idx) {
-        // todo
-      }
-      delete[] seg_buf;
-    }
-  }
-
   static constexpr uint32_t get_size(const char *) { return kBlockSize; }
 
   static constexpr uint32_t get_size(const DiskInode *) {
@@ -213,11 +163,48 @@ public:
       free_segments_ += seg_status_[i].occupied_bytes == 0;
     }
     builder_->seek(find_next_empty(kCRSize));
-    bg_thread_ =
-        std::make_unique<std::thread>(&SegmentsManager::background, this);
   }
 
   ~SegmentsManager() { delete[] seg_status_; }
+
+  std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
+  select_segments_for_gc() {
+    if (free_segments_ >= kFreeSegmentsLowerbound)
+      return {};
+    auto lock = std::shared_lock(lock_seg_status_);
+    std::vector<uint32_t> candidate_seg_indices;
+    auto cmp = [&](const uint32_t lhs, const uint32_t rhs) {
+      if (seg_status_[lhs].occupied_bytes == 0)
+        return false;
+      if (seg_status_[rhs].occupied_bytes == 0)
+        return true;
+      auto lhs_value =
+          seg_status_[lhs].occupied_bytes * seg_status_[lhs].flushing_version;
+      auto rhs_value =
+          seg_status_[rhs].occupied_bytes * seg_status_[rhs].flushing_version;
+      return lhs_value < rhs_value;
+    };
+    std::set<uint32_t, decltype(cmp)> heap;
+    for (uint32_t i = 0; i < kMaxSegments; i++) {
+      heap.insert(i);
+      if (heap.size() > kNumMergingSegments)
+        heap.erase(--heap.end());
+    }
+    std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
+        ds_by_inode_idx;
+    candidate_seg_indices = std::vector<uint32_t>{heap.begin(), heap.end()};
+    auto seg_buf = Disk::align_alloc(kSummarySize);
+    auto summary = reinterpret_cast<SegmentSummary *>(seg_buf);
+    for (auto seg_idx : candidate_seg_indices) {
+      auto addr = kCRSize + seg_idx * kSegmentSize;
+      disk_->read(seg_buf, addr, kSummarySize);
+      summary->for_each_entry([&](const uint32_t addr, const uint32_t inode_idx,
+                                  const uint32_t code) {
+        ds_by_inode_idx[inode_idx].push_back({addr, code});
+      });
+    }
+    return ds_by_inode_idx;
+  }
 
   const char *get_buf() { return reinterpret_cast<const char *>(seg_status_); }
 

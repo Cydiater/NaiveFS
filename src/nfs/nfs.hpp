@@ -14,16 +14,17 @@
 #include "nfs/disk_inode.hpp"
 #include "nfs/fd.hpp"
 #include "nfs/imap.hpp"
-#include "nfs/inode.hpp"
-#include "nfs/inode_manager.hpp"
+#include "nfs/id.hpp"
 #include "nfs/seg.hpp"
 #include "nfs/utils.hpp"
+#include "nfs/inode.hpp"
 
 class NaiveFS {
   std::unique_ptr<Disk> disk_;
   std::unique_ptr<SegmentsManager> seg_mgr_;
-  std::unique_ptr<InodeManager> inode_mgr_;
+  std::unique_ptr<Imap> imap_;
   std::unique_ptr<FDManager> fd_mgr_;
+  std::unique_ptr<IDManager> id_mgr_;
 
   enum class CR_DEST { START, END } last_cr_dest_;
 
@@ -53,10 +54,22 @@ class NaiveFS {
   }
 
   // running in a seperate thread
-  void background() {
+  void checkpoint_background() {
     while (true) {
       std::this_thread::sleep_for(std::chrono::seconds(kCRFlushingSeconds));
       flush_cr();
+    }
+  }
+
+  void gc_background() {
+    while (true) {
+      std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
+      std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
+          ds_by_inode_idx = seg_mgr_->select_segments_for_gc();
+      for (const auto &[inode_idx, addr_and_code_list] : ds_by_inode_idx) {
+        // todo
+      }
+      delete[] seg_buf;
     }
   }
 
