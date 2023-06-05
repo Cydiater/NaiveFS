@@ -3,7 +3,10 @@
 #include <atomic>
 #include <cassert>
 #include <cstring>
+#include <functional>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <shared_mutex>
@@ -28,12 +31,14 @@ struct SegmentSummary {
   uint32_t _pad[2];
   uint32_t entries[MAX_ENTRIES][3];
 
-  uint32_t count() const {
+  void for_each_entry(
+      std::function<void(const uint32_t, const uint32_t, const uint32_t)>
+          callback) {
     for (uint32_t i = 0; i < MAX_ENTRIES; i++) {
       if (entries[i][0] == INVALID_ENTRY)
-        return i;
+        break;
+      callback(entries[i][0], entries[i][1], entries[i][2]);
     }
-    return MAX_ENTRIES;
   }
 };
 
@@ -171,10 +176,25 @@ class SegmentsManager {
           if (heap.size() > kNumMergingSegments)
             heap.erase(--heap.end());
         }
-        for (const auto seg_idx : heap) {
-          // todo
-        }
+        candidate_seg_indices = std::vector<uint32_t>{heap.begin(), heap.end()};
       }
+      std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
+          ds_by_inode_idx;
+      auto seg_buf = Disk::align_alloc(kSummarySize);
+      auto summary = reinterpret_cast<SegmentSummary *>(seg_buf);
+      for (auto seg_idx : candidate_seg_indices) {
+        auto addr = kCRSize + seg_idx * kSegmentSize;
+        disk_->read(seg_buf, addr, kSummarySize);
+        summary->for_each_entry([&](const uint32_t addr,
+                                    const uint32_t inode_idx,
+                                    const uint32_t code) {
+          ds_by_inode_idx[inode_idx].push_back({addr, code});
+        });
+      }
+      for (const auto &[inode_idx, addr_and_code_list] : ds_by_inode_idx) {
+        // todo
+      }
+      delete[] seg_buf;
     }
   }
 
@@ -218,6 +238,7 @@ public:
   }
 
   template <typename obj_t> uint32_t push(obj_t obj, const uint32_t old_addr) {
+    auto lock = std::unique_lock(lock_seg_status_);
     if (old_addr == DiskInode::INVALID_ADDR)
       return push(obj);
     auto idx = addr2segidx(old_addr);

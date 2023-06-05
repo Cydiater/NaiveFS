@@ -201,7 +201,7 @@ public:
   }
 
   std::unique_ptr<DiskInode> rewrite_if_hit(
-      const std::vector<std::pair<uint32_t, uint32_t>> &code_and_addr_list) {
+      const std::vector<std::pair<uint32_t, uint32_t>> &addr_and_code_list) {
     // todo
   }
 

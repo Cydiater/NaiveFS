@@ -13,18 +13,17 @@
 #include "nfs/disk.hpp"
 #include "nfs/disk_inode.hpp"
 #include "nfs/fd.hpp"
-#include "nfs/id.hpp"
 #include "nfs/imap.hpp"
 #include "nfs/inode.hpp"
+#include "nfs/inode_manager.hpp"
 #include "nfs/seg.hpp"
 #include "nfs/utils.hpp"
 
 class NaiveFS {
   std::unique_ptr<Disk> disk_;
   std::unique_ptr<SegmentsManager> seg_mgr_;
+  std::unique_ptr<InodeManager> inode_mgr_;
   std::unique_ptr<FDManager> fd_mgr_;
-  std::unique_ptr<IDManager> id_mgr_;
-  std::unique_ptr<Imap> imap_;
 
   enum class CR_DEST { START, END } last_cr_dest_;
 
