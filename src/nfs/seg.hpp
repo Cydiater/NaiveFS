@@ -1,9 +1,12 @@
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <set>
+#include <shared_mutex>
 #include <thread>
 #include <vector>
 
@@ -19,8 +22,10 @@
 
 struct SegmentSummary {
   static constexpr uint32_t INVALID_ENTRY = 0;
-  static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12;
+  static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12 - 1;
 
+  uint32_t len_imap_;
+  uint32_t _pad[2];
   uint32_t entries[MAX_ENTRIES][3];
 
   uint32_t count() const {
@@ -52,7 +57,7 @@ public:
   }
   ~SegmentBuilder() { free(buf_); }
 
-  uint32_t imap_size() const { return 4 + imap_.size() * 8; }
+  uint32_t imap_size() const { return imap_.size() * 8; }
 
   void seek(const uint32_t cursor) {
     debug("SegmentBuidler: seek to " + std::to_string(cursor));
@@ -104,9 +109,9 @@ public:
     return: [buffer, offset, occupied_bytes]
    */
   std::tuple<const char *, uint32_t, uint32_t> build() {
-    auto ptr = buf_ + kSegmentSize - 4;
+    auto ptr = buf_ + kSegmentSize;
     uint32_t len = imap_.size();
-    std::memcpy(ptr, &len, 4);
+    summary_->len_imap_ = len;
     for (uint32_t i = 0; i < len; i++) {
       ptr -= 8;
       std::memcpy(ptr, &imap_[i].first, 4);
@@ -121,12 +126,13 @@ class SegmentsManager {
   std::unique_ptr<SegmentBuilder> builder_;
   Imap *imap_;
   std::unique_ptr<std::thread> bg_thread_;
+  std::shared_mutex lock_seg_status_;
 
   struct SegmentStatus {
     uint32_t flushing_version;
     uint32_t occupied_bytes;
   } * seg_status_;
-  uint32_t free_segments_;
+  std::atomic<uint32_t> free_segments_;
 
   uint32_t find_next_empty(uint32_t cursor) {
     while (true) {
@@ -143,7 +149,32 @@ class SegmentsManager {
   void background() {
     while (true) {
       std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
-      // todo
+      if (free_segments_ >= kFreeSegmentsLowerbound)
+        continue;
+      std::vector<uint32_t> candidate_seg_indices;
+      {
+        auto lock = std::shared_lock(lock_seg_status_);
+        auto cmp = [&](const uint32_t lhs, const uint32_t rhs) {
+          if (seg_status_[lhs].occupied_bytes == 0)
+            return false;
+          if (seg_status_[rhs].occupied_bytes == 0)
+            return true;
+          auto lhs_value = seg_status_[lhs].occupied_bytes *
+                           seg_status_[lhs].flushing_version;
+          auto rhs_value = seg_status_[rhs].occupied_bytes *
+                           seg_status_[rhs].flushing_version;
+          return lhs_value < rhs_value;
+        };
+        std::set<uint32_t, decltype(cmp)> heap;
+        for (uint32_t i = 0; i < kMaxSegments; i++) {
+          heap.insert(i);
+          if (heap.size() > kNumMergingSegments)
+            heap.erase(--heap.end());
+        }
+        for (const auto seg_idx : heap) {
+          // todo
+        }
+      }
     }
   }
 

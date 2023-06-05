@@ -200,6 +200,11 @@ public:
     return ret;
   }
 
+  std::unique_ptr<DiskInode> rewrite_if_hit(
+      const std::vector<std::pair<uint32_t, uint32_t>> &code_and_addr_list) {
+    // todo
+  }
+
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
     debug("Inode write " + std::to_string(offset) + " " + std::to_string(size) +
           " " + std::to_string(disk_inode_->size));
