@@ -203,6 +203,7 @@ public:
         ds_by_inode_idx[inode_idx].push_back({addr, code});
       });
     }
+    delete[] seg_buf;
     return ds_by_inode_idx;
   }
 

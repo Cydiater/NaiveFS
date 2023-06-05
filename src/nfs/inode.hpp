@@ -186,6 +186,18 @@ class Inode {
     delete[] buf;
   }
 
+  uint32_t addr_by_code(const uint32_t code) {
+    // todo
+  }
+
+  void rewrite(const char *, const uint32_t code) {
+    // todo
+  }
+
+  void rewrite(const uint32_t addr, const uint32_t code) {
+    // todo
+  }
+
 public:
   Inode(std::unique_ptr<DiskInode> disk_inode, SegmentsManager *seg,
         uint32_t inode_idx)
@@ -202,7 +214,15 @@ public:
 
   std::unique_ptr<DiskInode> rewrite_if_hit(
       const std::vector<std::pair<uint32_t, uint32_t>> &addr_and_code_list) {
-    // todo
+    for (const auto [addr, code] : addr_and_code_list) {
+      auto this_addr = addr_by_code(code);
+      if (this_addr == addr)
+        continue;
+      rewrite(addr, code);
+    }
+    if (dirty_)
+      return downgrade();
+    return nullptr;
   }
 
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {

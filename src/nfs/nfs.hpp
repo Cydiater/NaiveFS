@@ -13,11 +13,11 @@
 #include "nfs/disk.hpp"
 #include "nfs/disk_inode.hpp"
 #include "nfs/fd.hpp"
-#include "nfs/imap.hpp"
 #include "nfs/id.hpp"
+#include "nfs/imap.hpp"
+#include "nfs/inode.hpp"
 #include "nfs/seg.hpp"
 #include "nfs/utils.hpp"
-#include "nfs/inode.hpp"
 
 class NaiveFS {
   std::unique_ptr<Disk> disk_;
@@ -61,15 +61,20 @@ class NaiveFS {
     }
   }
 
+  // running in a seperate thread
   void gc_background() {
     while (true) {
       std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
       std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
           ds_by_inode_idx = seg_mgr_->select_segments_for_gc();
       for (const auto &[inode_idx, addr_and_code_list] : ds_by_inode_idx) {
-        // todo
+        auto inode = get_inode(inode_idx);
+        auto ret = inode->rewrite_if_hit(addr_and_code_list);
+        if (ret != nullptr) {
+          // update inode
+        }
       }
-      delete[] seg_buf;
+      // todo: for inode
     }
   }
 
@@ -105,7 +110,9 @@ public:
           std::make_pair(root_inode.get(), IDManager::root_inode_idx));
       imap_->update(IDManager::root_inode_idx, addr);
     }
-    bg_thread_ = std::make_unique<std::thread>(&NaiveFS::background, this);
+    bg_thread_ = std::make_unique<std::thread>(&NaiveFS::gc_background, this);
+    bg_thread_ =
+        std::make_unique<std::thread>(&NaiveFS::checkpoint_background, this);
   }
 
   ~NaiveFS() { flush_cr(); }
