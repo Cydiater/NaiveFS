@@ -8,6 +8,7 @@
 #include <optional>
 
 #include "nfs/config.hpp"
+#include "nfs/disk.hpp"
 #include "nfs/disk_inode.hpp"
 #include "nfs/imap.hpp"
 #include "nfs/seg.hpp"
@@ -18,6 +19,67 @@ class Inode {
   SegmentsManager *seg_;
   bool dirty_;
   uint32_t inode_idx_;
+  uint32_t indirect1_idx = 0;
+  uint32_t *indirect1 = nullptr;
+  uint32_t indirect1_addr = DiskInode::INVALID_ADDR;
+  uint32_t indirect2_idx = 0;
+  uint32_t *indirect2 = nullptr;
+  uint32_t indirect2_addr = DiskInode::INVALID_ADDR;
+
+  void fetch_indirect1(const uint32_t idx, const uint32_t addr) {
+    debug("fetch_indirect1(idx = " + std::to_string(idx) +
+          ", addr = " + std::to_string(addr) + ")");
+    // 当前 indirect1 和目标一致，返回
+    if (indirect1_addr == addr)
+      return;
+    // 若有修改，写回
+    if (dirty_ && indirect1_addr != DiskInode::INVALID_ADDR) {
+      auto new_addr = seg_->push(
+          std::make_tuple(reinterpret_cast<char *>(indirect1), inode_idx_,
+                          DiskInode::encode(indirect1_idx)));
+      if (indirect1_idx == kInodeDirectCnt)
+        disk_inode_->indirect1 = new_addr;
+      else
+        disk_inode_->indirect2 = new_addr;
+      std::memset(indirect1, 0, kBlockSize);
+    }
+    // 若不希望读新块，则停止
+    if (addr == DiskInode::INVALID_ADDR)
+      return;
+    // 若未分配，分配并读入
+    if (indirect1_addr == DiskInode::INVALID_ADDR) {
+      indirect1 = reinterpret_cast<uint32_t *>(Disk::align_alloc(kBlockSize));
+      std::memset(indirect1, 0, kBlockSize);
+    }
+    if (addr != DiskInode::TEMPORARY_ADDR)
+      seg_->read(reinterpret_cast<char *>(indirect1), addr, kBlockSize);
+    indirect1_addr = addr;
+    indirect1_idx = idx;
+  };
+
+  void fetch_indirect2(const uint32_t idx, const uint32_t addr) {
+    debug("fetch_indirect2(idx = " + std::to_string(idx) +
+          ", addr = " + std::to_string(addr) + ")");
+    if (indirect2_addr == addr)
+      return;
+    if (dirty_ && indirect2_addr != DiskInode::INVALID_ADDR) {
+      auto new_addr = seg_->push(
+          std::make_tuple(reinterpret_cast<char *>(indirect2), inode_idx_,
+                          DiskInode::encode(indirect1_idx, indirect2_idx)));
+      indirect1[indirect2_idx] = new_addr;
+      std::memset(indirect2, 0, kBlockSize);
+    }
+    if (addr == DiskInode::INVALID_ADDR)
+      return;
+    if (indirect2_addr == DiskInode::INVALID_ADDR) {
+      indirect2 = reinterpret_cast<uint32_t *>(Disk::align_alloc(kBlockSize));
+      std::memset(indirect2, 0, kBlockSize);
+    }
+    if (addr != DiskInode::TEMPORARY_ADDR)
+      seg_->read(reinterpret_cast<char *>(indirect2), addr, kBlockSize);
+    indirect2_addr = addr;
+    indirect2_idx = idx;
+  }
 
   /*
     callback:
@@ -34,69 +96,6 @@ class Inode {
                           callback) {
     assert(dirty_ == false);
     auto end = offset + size;
-    uint32_t indirect1_idx = 0;
-    uint32_t *indirect1 = nullptr;
-    uint32_t indirect1_addr = DiskInode::INVALID_ADDR;
-    uint32_t indirect2_idx = 0;
-    uint32_t *indirect2 = nullptr;
-    uint32_t indirect2_addr = DiskInode::INVALID_ADDR;
-    auto fetch_indirect1 = [&](const uint32_t idx, const uint32_t addr) {
-      debug("fetch_indirect1(idx = " + std::to_string(idx) +
-            ", addr = " + std::to_string(addr) + ")");
-      // 当前 indirect1 和目标一致，返回
-      if (indirect1_addr == addr)
-        return;
-      // 若有修改，写回
-      if (dirty_ && indirect1_addr != DiskInode::INVALID_ADDR) {
-        auto new_addr = seg_->push(
-            std::make_tuple(reinterpret_cast<char *>(indirect1), inode_idx_,
-                            DiskInode::encode(indirect1_idx)));
-        if (indirect1_idx == kInodeDirectCnt)
-          disk_inode_->indirect1 = new_addr;
-        else
-          disk_inode_->indirect2 = new_addr;
-        std::memset(indirect1, 0, kBlockSize);
-      }
-      // 若不希望读新块，则停止
-      if (addr == DiskInode::INVALID_ADDR)
-        return;
-      // 若未分配，分配并读入
-      if (indirect1_addr == DiskInode::INVALID_ADDR) {
-        indirect1 = reinterpret_cast<uint32_t *>(Disk::align_alloc(kBlockSize));
-        std::memset(indirect1, 0, kBlockSize);
-      }
-      if (addr != DiskInode::TEMPORARY_ADDR)
-        seg_->read(reinterpret_cast<char *>(indirect1), addr, kBlockSize);
-      indirect1_addr = addr;
-      indirect1_idx = idx;
-    };
-    auto fetch_indirect2 = [&](const uint32_t idx, const uint32_t addr) {
-      debug("fetch_indirect2(idx = " + std::to_string(idx) +
-            ", addr = " + std::to_string(addr) + ")");
-      if (indirect2_addr == addr)
-        return;
-      if (dirty_ && indirect2_addr != DiskInode::INVALID_ADDR) {
-        auto new_addr = seg_->push(
-            std::make_tuple(reinterpret_cast<char *>(indirect2), inode_idx_,
-                            DiskInode::encode(indirect1_idx, indirect2_idx)));
-        indirect1[indirect2_idx] = new_addr;
-        std::memset(indirect2, 0, kBlockSize);
-      }
-      if (addr == DiskInode::INVALID_ADDR)
-        return;
-      if (indirect2_addr == DiskInode::INVALID_ADDR) {
-        indirect2 = reinterpret_cast<uint32_t *>(Disk::align_alloc(kBlockSize));
-        std::memset(indirect2, 0, kBlockSize);
-      }
-      if (addr != DiskInode::TEMPORARY_ADDR)
-        seg_->read(reinterpret_cast<char *>(indirect2), addr, kBlockSize);
-      indirect2_addr = addr;
-      indirect2_idx = idx;
-    };
-    if (end > disk_inode_->size) {
-      disk_inode_->size = end;
-      dirty_ = true;
-    }
     while (offset < end) {
       const auto [i0, i1, i2] = DiskInode::translate(offset);
       debug("offset = " + std::to_string(offset) +
@@ -186,16 +185,66 @@ class Inode {
     delete[] buf;
   }
 
-  uint32_t addr_by_code(const uint32_t code) {
-    // todo
+  void load_indirects(const uint32_t code) {
+    const auto [i0, i1, i2] = DiskInode::decode(code);
+    if (code & (1 << 29)) {
+      assert(disk_inode_->indirect2 != DiskInode::INVALID_ADDR);
+      fetch_indirect1(kInodeDirectCnt + 1, disk_inode_->indirect2);
+      assert(indirect1[i1] != DiskInode::INVALID_ADDR);
+      fetch_indirect2(i1, indirect1[i1]);
+      return;
+    }
+    if (code & (1 << 30)) {
+      assert(disk_inode_->indirect1 != DiskInode::INVALID_ADDR);
+      fetch_indirect1(kInodeDirectCnt + 1, disk_inode_->indirect1);
+      return;
+    }
   }
 
-  void rewrite(const char *, const uint32_t code) {
-    // todo
+  void update_addr_by_code(const uint32_t addr, const uint32_t code) {
+    const auto [i0, i1, i2] = DiskInode::decode(code);
+    load_indirects(code);
+    if (code & (1 << 29)) {
+      indirect2[i2] = addr;
+      dirty_ = true;
+      return;
+    }
+    if (code & (1 << 30)) {
+      indirect1[i1] = addr;
+      dirty_ = true;
+      return;
+    }
+    if (i0 < kInodeDirectCnt)
+      disk_inode_->directs[i0] = addr;
+    else if (i0 == kInodeDirectCnt)
+      disk_inode_->indirect1 = addr;
+    else
+      disk_inode_->indirect2 = addr;
+    dirty_ = true;
+  }
+
+  uint32_t get_addr_by_code(const uint32_t code) {
+    const auto [i0, i1, i2] = DiskInode::decode(code);
+    load_indirects(code);
+    if (code & (1 << 29))
+      return indirect2[i2];
+    if (code & (1 << 30))
+      return indirect1[i1];
+    assert(code & (1 << 31));
+    if (i0 < kInodeDirectCnt)
+      return disk_inode_->directs[i0];
+    else if (i0 == kInodeDirectCnt)
+      return disk_inode_->indirect1;
+    else
+      return disk_inode_->indirect2;
   }
 
   void rewrite(const uint32_t addr, const uint32_t code) {
-    // todo
+    auto buf = Disk::align_alloc(kBlockSize);
+    seg_->read(buf, addr, kBlockSize);
+    auto new_addr = seg_->push(std::make_tuple(buf, inode_idx_, code), addr);
+    delete[] buf;
+    update_addr_by_code(new_addr, code);
   }
 
 public:
@@ -203,6 +252,11 @@ public:
         uint32_t inode_idx)
       : disk_inode_(std::move(disk_inode)), seg_(seg), dirty_(false),
         inode_idx_(inode_idx) {}
+
+  ~Inode() {
+    delete[] indirect1;
+    delete[] indirect2;
+  }
 
   std::unique_ptr<DiskInode> downgrade() {
     assert(disk_inode_ != nullptr);
@@ -215,7 +269,7 @@ public:
   std::unique_ptr<DiskInode> rewrite_if_hit(
       const std::vector<std::pair<uint32_t, uint32_t>> &addr_and_code_list) {
     for (const auto [addr, code] : addr_and_code_list) {
-      auto this_addr = addr_by_code(code);
+      auto this_addr = get_addr_by_code(code);
       if (this_addr == addr)
         continue;
       rewrite(addr, code);

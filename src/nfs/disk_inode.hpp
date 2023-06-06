@@ -66,8 +66,11 @@ struct DiskInode {
             ((offset - base2) / kBlockSize) % (kBlockSize / 4)};
   }
 
-  static uint32_t decode(const uint32_t code) {
-    // todo
+  static std::tuple<uint32_t, uint32_t, uint32_t> decode(const uint32_t code) {
+    auto this_i0 = code & ((1 << 5) - 1);
+    auto this_i1 = (code >> 5) & ((1 << 10) - 1);
+    auto this_i2 = (code >> 15) & ((1 << 10) - 1);
+    return {this_i0, this_i1, this_i2};
   }
 
   static uint32_t encode(const uint32_t i0) {
