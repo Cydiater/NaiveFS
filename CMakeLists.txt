@@ -19,8 +19,8 @@ target_compile_definitions(nfs PRIVATE
     -DFUSE_USE_VERSION=31
 )
 
-if(SMALL_SEGMENT)
+if(SMALL_DISK)
     target_compile_definitions(nfs PRIVATE
-        -DSMALL_SEGMENT
+        -DSMALL_DISK
     )
 endif()

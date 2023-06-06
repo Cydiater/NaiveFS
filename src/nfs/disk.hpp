@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cerrno>
 #include <cstring>
 #include <string>
 #include <unistd.h>
@@ -31,8 +32,8 @@ public:
   }
 
   void write(const char *buf, const uint32_t offset, const uint32_t size) {
-    debug("Disk write [" + std::to_string(offset) + ", " +
-          std::to_string(offset + size) + ")");
+    // debug("Disk write [" + std::to_string(offset) + ", " +
+    // std::to_string(offset + size) + ")");
     assert(offset + size < kMemDiskCapacityMB * 1024 * 1024);
     std::memcpy(mem_ + offset, buf, size);
   }
@@ -43,12 +44,11 @@ class FileDisk {
 
 public:
   FileDisk(const char *_path, const uint32_t capacity) {
-    debug("Disk " + std::string(_path));
     fd = open(_path, O_CREAT | O_DIRECT | O_NOATIME | O_RDWR, 0666);
-    debug(strerror(errno));
+    assert(errno == 0);
     assert(fd != -1);
-    debug("Disk size " + std::to_string(capacity * 1024 * 1024 * 1024));
-    auto res = ftruncate(fd, capacity * 1024 * 1024 * 1024);
+    debug("Disk size " + std::to_string(capacity * 1024 * 1024));
+    auto res = ftruncate(fd, capacity * 1024 * 1024);
     assert(res != -1);
   }
 
@@ -60,15 +60,13 @@ public:
     return buf;
   }
 
-  uint32_t end() const { return kDiskCapacityGB * 1024 * 1024 * 1024; }
+  uint32_t end() const { return kDiskCapacityMB * 1024 * 1024; }
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
     if (size <= 4 * kBlockSize) {
       nread(buf, offset, size);
       return;
     }
-    debug("Disk read [" + std::to_string(offset) + ", " +
-          std::to_string(offset + size) + ")");
     assert(offset + size <= end());
     assert((size_t)buf % 512 == 0);
     assert(offset % 512 == 0);
@@ -76,8 +74,6 @@ public:
     assert(res != -1);
   }
   void nread(char *buf, const uint32_t offset, const uint32_t size) {
-    debug("Disk nread [" + std::to_string(offset) + ", " +
-          std::to_string(offset + size) + ")");
     assert(offset + size <= end());
     uint32_t loffset = offset / 512 * 512;
     uint32_t rsize = ((size + (offset - loffset)) + 511) / 512 * 512;
@@ -89,8 +85,8 @@ public:
   }
 
   void write(const char *buf, const uint32_t offset, const uint32_t size) {
-    debug("Disk write [" + std::to_string(offset) + ", " +
-          std::to_string(offset + size) + ")");
+    // debug("Disk write [" + std::to_string(offset) + ", " +
+    // std::to_string(offset + size) + ")");
     assert(offset + size <= end());
     assert((size_t)buf % 512 == 0);
     assert(size % 512 == 0);

@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <fcntl.h>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -37,7 +38,7 @@ class NaiveFS {
   std::unique_ptr<std::thread> ckpt_;
 
   void flush_cr() {
-    debug("flushing checkpoint region");
+    debug("BACKGROUND: flushing checkpoint region");
     auto lock = std::unique_lock(lock_flushing_cr_);
     seg_mgr_->flush();
     const char *imap_buf = imap_->get_buf();
@@ -66,22 +67,43 @@ class NaiveFS {
   void gc_background() {
     while (true) {
       std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
-      std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
-          ds_by_inode_idx = seg_mgr_->select_segments_for_gc();
+      auto lock = std::unique_lock(lock_flushing_cr_);
+      debug("BACKGROUND: checking for gc");
+      const auto [ds_by_inode_idx, addr_by_inode_idx] =
+          seg_mgr_->select_segments_for_gc();
+      debug("\tds_by_inode_idx of size " +
+            std::to_string(ds_by_inode_idx.size()) +
+            ", addr_by_inode_idx of size " +
+            std::to_string(addr_by_inode_idx.size()));
       for (const auto &[inode_idx, addr_and_code_list] : ds_by_inode_idx) {
         auto inode = get_inode(inode_idx);
         auto ret = inode->rewrite_if_hit(addr_and_code_list);
         if (ret != nullptr) {
-          // update inode
+          auto addr = seg_mgr_->push(std::make_pair(ret.get(), inode_idx),
+                                     imap_->get(inode_idx));
+          imap_->update(inode_idx, addr);
         }
+#ifndef NDEBUG
+        inode = get_inode(inode_idx);
+        inode->sanity_check();
+#endif
       }
-      // todo: for inode
+      for (const auto &[inode_idx, inode_addr] : addr_by_inode_idx) {
+        if (inode_addr != imap_->get(inode_idx))
+          continue;
+        debug("update inode(" + std::to_string(inode_idx) +
+              ", inode_addr = " + std::to_string(inode_addr) + ")");
+        auto inode = get_diskinode(inode_idx);
+        auto addr =
+            seg_mgr_->push(std::make_pair(inode.get(), inode_idx), inode_addr);
+        imap_->update(inode_idx, addr);
+      }
     }
   }
 
 public:
   NaiveFS()
-      : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
+      : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityMB)),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
     char *buf_start = Disk::align_alloc(kCRImapSize);
@@ -118,6 +140,16 @@ public:
 
   ~NaiveFS() { flush_cr(); }
 
+  void truncate(const uint32_t fd, const uint32_t size) {
+    auto inode_idx = fd_mgr_->get(fd);
+    auto dinode_addr = imap_->get(inode_idx);
+    auto inode = get_inode(inode_idx);
+    auto dinode = inode->truncate(size);
+    auto addr =
+        seg_mgr_->push(std::make_pair(dinode.get(), inode_idx), dinode_addr);
+    imap_->update(inode_idx, addr);
+  }
+
   uint32_t open(const char *path, const int flags) {
     auto lock = std::shared_lock(lock_flushing_cr_);
     auto path_components = parse_path_components(path);
@@ -132,6 +164,9 @@ public:
     if (maybe_this_inode_idx.has_value()) {
       auto this_inode_idx = maybe_this_inode_idx.value();
       auto fd = fd_mgr_->allocate(this_inode_idx);
+      if (flags & O_TRUNC) {
+        truncate(fd, 0);
+      }
       return fd;
     }
     auto this_disk_inode = DiskInode::make_file();
@@ -139,7 +174,6 @@ public:
     auto this_dinode_addr =
         seg_mgr_->push(std::make_pair(this_disk_inode.get(), this_inode_idx));
     imap_->update(this_inode_idx, this_dinode_addr);
-    debug("open this_inode_idx = " + std::to_string(this_inode_idx));
     auto nv_parent_disk_inode = parent_inode->push(name, this_inode_idx);
     auto nv_parent_dinode_addr = seg_mgr_->push(
         std::make_pair(nv_parent_disk_inode.get(), parent_inode_idx),
@@ -198,7 +232,7 @@ public:
     imap_->update(inode_idx, new_addr);
   }
 
-  void modify(std::unique_ptr<DiskInode> disk_inode, const uint32_t inode_idx) {
+  void modify(std::unique_ptr<DiskInode>, const uint32_t) {
     // todo
   }
 

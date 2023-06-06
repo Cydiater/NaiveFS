@@ -46,12 +46,8 @@ public:
     assert(inode_idx < kMaxInode);
     auto entry = map_[inode_idx];
     if (entry == INVALID_VALUE) {
-      debug(std::string("IMAP get inode_idx ") + std::to_string(inode_idx) +
-            std::string(" not found"));
       throw NoImapEntry();
     }
-    debug(std::string("IMAP get inode_idx ") + std::to_string(inode_idx) +
-          std::string(" -> ") + std::to_string(entry));
     return entry;
   }
 
