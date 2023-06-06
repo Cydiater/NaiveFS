@@ -19,7 +19,7 @@ constexpr uint32_t kMemDiskCapacityMB = 16;
 
 #ifdef SMALL_DISK
 
-constexpr uint32_t kGCCheckSeconds = 5;
+constexpr uint32_t kGCCheckSeconds = 10;
 constexpr uint32_t kDiskCapacityMB = 128;
 constexpr uint32_t kFreeSegmentsLowerbound = 128;
 

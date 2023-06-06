@@ -67,8 +67,6 @@ public:
       nread(buf, offset, size);
       return;
     }
-    debug("Disk read [" + std::to_string(offset) + ", " +
-          std::to_string(offset + size) + ")");
     assert(offset + size <= end());
     assert((size_t)buf % 512 == 0);
     assert(offset % 512 == 0);
@@ -76,8 +74,6 @@ public:
     assert(res != -1);
   }
   void nread(char *buf, const uint32_t offset, const uint32_t size) {
-    debug("Disk nread [" + std::to_string(offset) + ", " +
-          std::to_string(offset + size) + ")");
     assert(offset + size <= end());
     uint32_t loffset = offset / 512 * 512;
     uint32_t rsize = ((size + (offset - loffset)) + 511) / 512 * 512;

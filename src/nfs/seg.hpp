@@ -183,15 +183,11 @@ public:
     auto lock = std::shared_lock(lock_seg_status_);
     std::vector<uint32_t> candidate_seg_indices;
     auto cmp = [this](const uint32_t lhs, const uint32_t rhs) {
-      if (seg_status_[lhs].occupied_bytes == 0)
-        return false;
-      if (seg_status_[rhs].occupied_bytes == 0)
-        return true;
       auto lhs_value =
           seg_status_[lhs].occupied_bytes * seg_status_[lhs].flushing_version;
       auto rhs_value =
           seg_status_[rhs].occupied_bytes * seg_status_[rhs].flushing_version;
-      return lhs_value < rhs_value;
+      return std::make_pair(lhs_value, lhs) < std::make_pair(rhs_value, rhs);
     };
     std::set<uint32_t, decltype(cmp)> heap(cmp);
     for (uint32_t i = 0; i < kMaxSegments; i++) {
@@ -220,12 +216,14 @@ public:
     for (auto seg_idx : candidate_seg_indices) {
       auto addr = kCRSize + seg_idx * kSegmentSize;
       disk_->read(seg_buf, addr, kSummarySize);
+      // 跳过空闲空间过小的
+      if (summary->total_bytes_ - seg_status_[seg_idx].occupied_bytes <=
+          kBlockSize)
+        continue;
       summary->for_each_entry([&](const uint32_t addr, const uint32_t inode_idx,
                                   const uint32_t code) {
         ds_by_inode_idx[inode_idx].push_back({addr, code});
       });
-      if (summary->total_bytes_ == seg_status_[seg_idx].occupied_bytes)
-        continue;
       auto imap_len = summary->len_imap_;
       disk_->nread(seg_buf, addr + kSegmentSize - imap_len * 8, imap_len * 8);
       for (uint32_t i = 0; i < imap_len; i++) {
@@ -265,6 +263,7 @@ public:
     auto idx = addr2segidx(addr);
     if (addr2segidx(builder_->get_cursor()) == idx)
       return;
+    assert(size <= seg_status_[idx].occupied_bytes);
     seg_status_[idx].occupied_bytes -= size;
     if (seg_status_[idx].occupied_bytes == 0) {
       free_segments_ += 1;

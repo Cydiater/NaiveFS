@@ -262,7 +262,6 @@ public:
 
   std::unique_ptr<DiskInode> downgrade() {
     assert(disk_inode_ != nullptr);
-    debug(std::to_string(disk_inode_->directs[0]));
     auto ret = std::unique_ptr<DiskInode>(nullptr);
     disk_inode_.swap(ret);
     return ret;
@@ -288,7 +287,7 @@ public:
       const std::vector<std::pair<uint32_t, uint32_t>> &addr_and_code_list) {
     for (const auto &[addr, code] : addr_and_code_list) {
       auto this_addr = get_addr_by_code(code);
-      if (this_addr == addr)
+      if (this_addr != addr)
         continue;
       rewrite(addr, code);
     }
