@@ -47,8 +47,8 @@ public:
     fd = open(_path, O_CREAT | O_DIRECT | O_NOATIME | O_RDWR, 0666);
     debug(strerror(errno));
     assert(fd != -1);
-    debug("Disk size " + std::to_string(capacity * 1024 * 1024 * 1024));
-    auto res = ftruncate(fd, capacity * 1024 * 1024 * 1024);
+    debug("Disk size " + std::to_string(capacity * 1024 * 1024));
+    auto res = ftruncate(fd, capacity * 1024 * 1024);
     assert(res != -1);
   }
 
@@ -60,7 +60,7 @@ public:
     return buf;
   }
 
-  uint32_t end() const { return kDiskCapacityGB * 1024 * 1024 * 1024; }
+  uint32_t end() const { return kDiskCapacityMB * 1024 * 1024; }
 
   void read(char *buf, const uint32_t offset, const uint32_t size) {
     if (size <= 4 * kBlockSize) {

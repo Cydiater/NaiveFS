@@ -226,7 +226,7 @@ public:
 
   static uint32_t addr2segidx(const uint32_t addr) {
     assert(addr >= kCRSize);
-    assert(addr < kDiskCapacityGB * 1024 * 1024 * 1024 - kCRSize);
+    assert(addr < kDiskCapacityMB * 1024 * 1024 - kCRSize);
     return (addr - kCRSize) / kSegmentSize;
   }
 

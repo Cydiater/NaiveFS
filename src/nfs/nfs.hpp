@@ -90,7 +90,7 @@ class NaiveFS {
 
 public:
   NaiveFS()
-      : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityGB)),
+      : disk_(std::make_unique<Disk>(kDiskPath, kDiskCapacityMB)),
         fd_mgr_(std::make_unique<FDManager>()),
         id_mgr_(std::make_unique<IDManager>()) {
     char *buf_start = Disk::align_alloc(kCRImapSize);
