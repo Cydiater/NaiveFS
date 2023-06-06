@@ -71,7 +71,7 @@ public:
   }
 
   void seek(const uint32_t cursor) {
-    debug("SegmentBuidler: seek to " + std::to_string(cursor));
+    // debug("SegmentBuidler: seek to " + std::to_string(cursor));
     offset_ = kSummarySize;
     cursor_ = cursor;
     occupied_bytes_ = 0;
@@ -146,6 +146,10 @@ class SegmentsManager {
   Imap *imap_;
   std::shared_mutex lock_seg_status_;
 
+#ifndef NDEBUG
+  std::set<uint32_t> discarded;
+#endif
+
   struct SegmentStatus {
     uint32_t flushing_version;
     uint32_t occupied_bytes;
@@ -159,7 +163,8 @@ class SegmentsManager {
         return cursor;
       }
       cursor += kSegmentSize;
-      // todo: consider warping
+      if (cursor + kSegmentSize > disk_->end() - kCRSize)
+        cursor = kCRSize;
     }
   }
 
@@ -207,16 +212,18 @@ public:
       if (heap.size() > kNumMergingSegments)
         heap.erase(--heap.end());
     }
-#ifndef NDEBUG
-    std::string msg = "\tstatus of the selected segments: ";
-    for (const auto seg_idx : heap) {
-      msg += "[idx = " + std::to_string(seg_idx) + ", version = " +
-             std::to_string(seg_status_[seg_idx].flushing_version) +
-             ", occupied_bytes = " +
-             std::to_string(seg_status_[seg_idx].occupied_bytes) + "] ";
-    }
-    debug(msg);
-#endif
+    /*
+    #ifndef NDEBUG
+        std::string msg = "\tstatus of the selected segments: ";
+        for (const auto seg_idx : heap) {
+          msg += "[idx = " + std::to_string(seg_idx) + ", version = " +
+                 std::to_string(seg_status_[seg_idx].flushing_version) +
+                 ", occupied_bytes = " +
+                 std::to_string(seg_status_[seg_idx].occupied_bytes) + "] ";
+        }
+        debug(msg);
+    #endif
+    */
     std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
         ds_by_inode_idx;
     std::map<uint32_t, uint32_t> addr_by_inode_idx;
@@ -267,8 +274,9 @@ public:
 
   void flush() {
     auto [buf, offset, occupied_bytes] = builder_->build();
-    if (occupied_bytes == 0)
+    if (occupied_bytes == 0) {
       return;
+    }
     auto idx = (offset - kCRSize) / kSegmentSize;
     seg_status_[idx].occupied_bytes = occupied_bytes;
     seg_status_[idx].flushing_version = imap_->version();
@@ -278,10 +286,19 @@ public:
     free_segments_ -= 1;
   }
 
+  void assert_not_discarded(const uint32_t addr) {
+#ifndef NDEBUG
+    assert(discarded.find(addr) == discarded.end());
+#endif
+  }
+
   void discard(const uint32_t addr, const uint32_t size) {
     auto lock = std::unique_lock(lock_seg_status_);
-    // debug("SegmentsManager: discard(addr = " + std::to_string(addr) +  ",
-    // size = " + std::to_string(size) + ")");
+#ifndef NDEBUG
+    discarded.insert(addr);
+#endif
+    /*debug("SegmentsManager: discard(addr = " + std::to_string(addr) + ", size
+     * = " + std::to_string(size) + ")"); */
     auto idx = addr2segidx(addr);
     if (addr2segidx(builder_->get_cursor()) == idx) {
       builder_->discard(size);

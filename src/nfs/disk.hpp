@@ -32,8 +32,8 @@ public:
   }
 
   void write(const char *buf, const uint32_t offset, const uint32_t size) {
-    debug("Disk write [" + std::to_string(offset) + ", " +
-          std::to_string(offset + size) + ")");
+    // debug("Disk write [" + std::to_string(offset) + ", " +
+    // std::to_string(offset + size) + ")");
     assert(offset + size < kMemDiskCapacityMB * 1024 * 1024);
     std::memcpy(mem_ + offset, buf, size);
   }
@@ -85,8 +85,8 @@ public:
   }
 
   void write(const char *buf, const uint32_t offset, const uint32_t size) {
-    debug("Disk write [" + std::to_string(offset) + ", " +
-          std::to_string(offset + size) + ")");
+    // debug("Disk write [" + std::to_string(offset) + ", " +
+    // std::to_string(offset + size) + ")");
     assert(offset + size <= end());
     assert((size_t)buf % 512 == 0);
     assert(size % 512 == 0);

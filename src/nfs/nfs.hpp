@@ -83,6 +83,10 @@ class NaiveFS {
                                      imap_->get(inode_idx));
           imap_->update(inode_idx, addr);
         }
+#ifndef NDEBUG
+        inode = get_inode(inode_idx);
+        inode->sanity_check();
+#endif
       }
       for (const auto &[inode_idx, inode_addr] : addr_by_inode_idx) {
         if (inode_addr != imap_->get(inode_idx))
