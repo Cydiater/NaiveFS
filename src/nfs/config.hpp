@@ -4,7 +4,6 @@
 #include <string>
 
 constexpr uint32_t kCRFlushingSeconds = 30;
-constexpr uint32_t kInodeDirectCnt = 24;
 constexpr const char *kDiskPath = "/tmp/disk";
 constexpr uint32_t kMaxInode = 65536;
 constexpr uint32_t kFreeSegmentsUpperbound = 128;
@@ -19,12 +18,14 @@ constexpr uint32_t kMemDiskCapacityMB = 16;
 
 #ifdef SMALL_DISK
 
+constexpr uint32_t kInodeDirectCnt = 24;
 constexpr uint32_t kGCCheckSeconds = 10;
 constexpr uint32_t kDiskCapacityMB = 128;
-constexpr uint32_t kFreeSegmentsLowerbound = 256;
+constexpr uint32_t kFreeSegmentsLowerbound = 128;
 
 #else
 
+constexpr uint32_t kInodeDirectCnt = 24;
 constexpr uint32_t kGCCheckSeconds = 1;
 constexpr uint32_t kDiskCapacityMB = 2 * 1024;
 constexpr uint32_t kFreeSegmentsLowerbound = 32;

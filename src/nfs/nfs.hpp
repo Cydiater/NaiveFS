@@ -67,6 +67,7 @@ class NaiveFS {
   void gc_background() {
     while (true) {
       std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
+      auto lock = std::unique_lock(lock_flushing_cr_);
       debug("BACKGROUND: checking for gc");
       const auto [ds_by_inode_idx, addr_by_inode_idx] =
           seg_mgr_->select_segments_for_gc();
@@ -227,7 +228,7 @@ public:
     imap_->update(inode_idx, new_addr);
   }
 
-  void modify(std::unique_ptr<DiskInode> disk_inode, const uint32_t inode_idx) {
+  void modify(std::unique_ptr<DiskInode>, const uint32_t) {
     // todo
   }
 

@@ -100,9 +100,10 @@ public:
     summary_->entries[block_cnt_][1] = std::get<1>(block);
     summary_->entries[block_cnt_][2] = std::get<2>(block);
     block_cnt_ += 1;
-    debug("SegmentsManager: push block(inode_idx = " +
+    /*debug("SegmentsManager: push block(inode_idx = " +
           std::to_string(std::get<1>(block)) + ", code = " +
-          std::to_string(std::get<2>(block)) + ") at " + std::to_string(ret));
+          DiskInode::to_string(std::get<2>(block)) + ") at " +
+       std::to_string(ret)); */
     return ret;
   }
 
@@ -116,8 +117,9 @@ public:
     offset_ += inc;
     occupied_bytes_ += inc;
     imap_.push_back({std::get<1>(inode), ret});
-    debug("SegmentsManager: push inode(inode_idx = " +
+    /*debug("SegmentsManager: push inode(inode_idx = " +
           std::to_string(std::get<1>(inode)) + ") at " + std::to_string(ret));
+     */
     return ret;
   }
 
@@ -243,6 +245,15 @@ public:
       }
     }
     delete[] seg_buf;
+    for (auto &[inode_idx, ds] : ds_by_inode_idx) {
+      std::sort(ds.begin(), ds.end(),
+                [](const std::pair<uint32_t, uint32_t> &lhs,
+                   const std::pair<uint32_t, uint32_t> &rhs) {
+                  auto l = DiskInode::decode(lhs.second);
+                  auto r = DiskInode::decode(rhs.second);
+                  return l < r;
+                });
+    }
     return {ds_by_inode_idx, addr_by_inode_idx};
   }
 
@@ -268,6 +279,9 @@ public:
   }
 
   void discard(const uint32_t addr, const uint32_t size) {
+    auto lock = std::unique_lock(lock_seg_status_);
+    // debug("SegmentsManager: discard(addr = " + std::to_string(addr) +  ",
+    // size = " + std::to_string(size) + ")");
     auto idx = addr2segidx(addr);
     if (addr2segidx(builder_->get_cursor()) == idx) {
       builder_->discard(size);
@@ -281,7 +295,6 @@ public:
   }
 
   template <typename obj_t> uint32_t push(obj_t obj, const uint32_t old_addr) {
-    auto lock = std::unique_lock(lock_seg_status_);
     if (old_addr == DiskInode::INVALID_ADDR ||
         old_addr == DiskInode::TEMPORARY_ADDR)
       return push(obj);

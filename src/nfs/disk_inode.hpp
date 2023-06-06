@@ -66,6 +66,16 @@ struct DiskInode {
             ((offset - base2) / kBlockSize) % (kBlockSize / 4)};
   }
 
+  static std::string to_string(const uint32_t code) {
+    const auto [i0, i1, i2] = decode(code);
+    if (code & (1 << 29))
+      return "[" + std::to_string(i0) + ", " + std::to_string(i1) + ", " +
+             std::to_string(i2) + "]";
+    if (code & (1 << 30))
+      return "[" + std::to_string(i0) + ", " + std::to_string(i1) + "]";
+    return "[" + std::to_string(i0) + "]";
+  }
+
   static std::tuple<uint32_t, uint32_t, uint32_t> decode(const uint32_t code) {
     auto this_i0 = code & ((1 << 5) - 1);
     auto this_i1 = (code >> 5) & ((1 << 10) - 1);
