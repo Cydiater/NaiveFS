@@ -81,8 +81,7 @@ public:
   }
 
   std::optional<uint32_t>
-  push(const std::tuple<char *, uint32_t /* inode_idx */,
-                        uint32_t /* inode_offset */>
+  push(const std::tuple<char *, uint32_t /* inode_idx */, uint32_t /* code */>
            block) {
     if (offset_ + kBlockSize + imap_size() > kSegmentSize)
       return std::nullopt;
@@ -93,6 +92,9 @@ public:
     summary_->entries[block_cnt_][0] = ret;
     summary_->entries[block_cnt_][1] = std::get<1>(block);
     summary_->entries[block_cnt_][2] = std::get<2>(block);
+    debug("SegmentsManager: push block(inode_idx = " +
+          std::to_string(std::get<1>(block)) + ", code = " +
+          std::to_string(std::get<2>(block)) + ") at " + std::to_string(ret));
     return ret;
   }
 
@@ -106,6 +108,8 @@ public:
     offset_ += inc;
     occupied_bytes_ += inc;
     imap_.push_back({ret, std::get<1>(inode)});
+    debug("SegmentsManager: push inode(inode_idx = " +
+          std::to_string(std::get<1>(inode)) + ") at " + std::to_string(ret));
     return ret;
   }
 
@@ -173,7 +177,7 @@ public:
       return {};
     auto lock = std::shared_lock(lock_seg_status_);
     std::vector<uint32_t> candidate_seg_indices;
-    auto cmp = [&](const uint32_t lhs, const uint32_t rhs) {
+    auto cmp = [this](const uint32_t lhs, const uint32_t rhs) {
       if (seg_status_[lhs].occupied_bytes == 0)
         return false;
       if (seg_status_[rhs].occupied_bytes == 0)
@@ -184,7 +188,7 @@ public:
           seg_status_[rhs].occupied_bytes * seg_status_[rhs].flushing_version;
       return lhs_value < rhs_value;
     };
-    std::set<uint32_t, decltype(cmp)> heap;
+    std::set<uint32_t, decltype(cmp)> heap(cmp);
     for (uint32_t i = 0; i < kMaxSegments; i++) {
       heap.insert(i);
       if (heap.size() > kNumMergingSegments)

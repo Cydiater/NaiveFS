@@ -33,7 +33,8 @@ class NaiveFS {
   // every atomic fs operation should acquire a shared
   // lock before any other update.
   std::shared_mutex lock_flushing_cr_;
-  std::unique_ptr<std::thread> bg_thread_;
+  std::unique_ptr<std::thread> gc_;
+  std::unique_ptr<std::thread> ckpt_;
 
   void flush_cr() {
     debug("flushing checkpoint region");
@@ -110,8 +111,8 @@ public:
           std::make_pair(root_inode.get(), IDManager::root_inode_idx));
       imap_->update(IDManager::root_inode_idx, addr);
     }
-    bg_thread_ = std::make_unique<std::thread>(&NaiveFS::gc_background, this);
-    bg_thread_ =
+    gc_ = std::make_unique<std::thread>(&NaiveFS::gc_background, this);
+    ckpt_ =
         std::make_unique<std::thread>(&NaiveFS::checkpoint_background, this);
   }
 

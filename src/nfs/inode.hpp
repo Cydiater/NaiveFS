@@ -268,7 +268,7 @@ public:
 
   std::unique_ptr<DiskInode> rewrite_if_hit(
       const std::vector<std::pair<uint32_t, uint32_t>> &addr_and_code_list) {
-    for (const auto [addr, code] : addr_and_code_list) {
+    for (const auto &[addr, code] : addr_and_code_list) {
       auto this_addr = get_addr_by_code(code);
       if (this_addr == addr)
         continue;
@@ -280,8 +280,8 @@ public:
   }
 
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
-    debug("Inode write " + std::to_string(offset) + " " + std::to_string(size) +
-          " " + std::to_string(disk_inode_->size));
+    debug("Inode[" + std::to_string(inode_idx_) + "] write(offset = " +
+          std::to_string(offset) + ", " + std::to_string(size) + ")");
     assert(offset <= disk_inode_->size);
     for_each_block(
         offset, size,
@@ -307,6 +307,8 @@ public:
           buf += this_size;
           return new_addr;
         });
+    if (offset + size >= disk_inode_->size)
+      disk_inode_->size = offset + size;
     return downgrade();
   }
 
