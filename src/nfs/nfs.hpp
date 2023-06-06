@@ -66,16 +66,25 @@ class NaiveFS {
   void gc_background() {
     while (true) {
       std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
-      std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
-          ds_by_inode_idx = seg_mgr_->select_segments_for_gc();
+      const auto [ds_by_inode_idx, addr_by_inode_idx] =
+          seg_mgr_->select_segments_for_gc();
       for (const auto &[inode_idx, addr_and_code_list] : ds_by_inode_idx) {
         auto inode = get_inode(inode_idx);
         auto ret = inode->rewrite_if_hit(addr_and_code_list);
         if (ret != nullptr) {
-          // update inode
+          auto addr = seg_mgr_->push(std::make_pair(ret.get(), inode_idx),
+                                     imap_->get(inode_idx));
+          imap_->update(inode_idx, addr);
         }
       }
-      // todo: for inode
+      for (const auto &[inode_idx, inode_addr] : addr_by_inode_idx) {
+        if (inode_addr != imap_->get(inode_idx))
+          continue;
+        auto inode = get_diskinode(inode_idx);
+        auto addr =
+            seg_mgr_->push(std::make_pair(inode.get(), inode_idx), inode_addr);
+        imap_->update(inode_idx, addr);
+      }
     }
   }
 
@@ -139,7 +148,6 @@ public:
     auto this_dinode_addr =
         seg_mgr_->push(std::make_pair(this_disk_inode.get(), this_inode_idx));
     imap_->update(this_inode_idx, this_dinode_addr);
-    debug("open this_inode_idx = " + std::to_string(this_inode_idx));
     auto nv_parent_disk_inode = parent_inode->push(name, this_inode_idx);
     auto nv_parent_dinode_addr = seg_mgr_->push(
         std::make_pair(nv_parent_disk_inode.get(), parent_inode_idx),

@@ -333,8 +333,6 @@ public:
 
   std::unique_ptr<DiskInode> push(const std::string &name,
                                   const uint32_t inode_idx) {
-    debug("inode dir push entry size =  " + std::to_string(disk_inode_->size) +
-          " " + name + " -> " + std::to_string(inode_idx));
     auto [buf, len] = make_one_dir_entry(name, inode_idx);
     return write(buf, disk_inode_->size, len);
   }

@@ -171,7 +171,8 @@ public:
 
   ~SegmentsManager() { delete[] seg_status_; }
 
-  std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
+  std::pair<std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>,
+            std::map<uint32_t, uint32_t>>
   select_segments_for_gc() {
     if (free_segments_ >= kFreeSegmentsLowerbound)
       return {};
@@ -196,8 +197,9 @@ public:
     }
     std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
         ds_by_inode_idx;
+    std::map<uint32_t, uint32_t> addr_by_inode_idx;
     candidate_seg_indices = std::vector<uint32_t>{heap.begin(), heap.end()};
-    auto seg_buf = Disk::align_alloc(kSummarySize);
+    auto seg_buf = Disk::align_alloc(kSegmentSize);
     auto summary = reinterpret_cast<SegmentSummary *>(seg_buf);
     for (auto seg_idx : candidate_seg_indices) {
       auto addr = kCRSize + seg_idx * kSegmentSize;
@@ -206,9 +208,18 @@ public:
                                   const uint32_t code) {
         ds_by_inode_idx[inode_idx].push_back({addr, code});
       });
+      auto imap_len = summary->len_imap_;
+      disk_->nread(seg_buf, addr + kSegmentSize - imap_len * 8, imap_len * 8);
+      for (uint32_t i = 0; i < imap_len; i++) {
+        auto inode_idx = reinterpret_cast<uint32_t *>(seg_buf)[i * 2];
+        auto inode_addr = reinterpret_cast<uint32_t *>(seg_buf)[i * 2 + 1];
+        if (imap_->get(inode_idx) == addr_by_inode_idx[inode_idx])
+          continue;
+        addr_by_inode_idx[inode_idx] = inode_addr;
+      }
     }
     delete[] seg_buf;
-    return ds_by_inode_idx;
+    return {ds_by_inode_idx, addr_by_inode_idx};
   }
 
   const char *get_buf() { return reinterpret_cast<const char *>(seg_status_); }
