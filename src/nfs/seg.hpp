@@ -107,7 +107,7 @@ public:
     auto ret = cursor_ + offset_;
     offset_ += inc;
     occupied_bytes_ += inc;
-    imap_.push_back({ret, std::get<1>(inode)});
+    imap_.push_back({std::get<1>(inode), ret});
     debug("SegmentsManager: push inode(inode_idx = " +
           std::to_string(std::get<1>(inode)) + ") at " + std::to_string(ret));
     return ret;
@@ -174,6 +174,7 @@ public:
   std::pair<std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>,
             std::map<uint32_t, uint32_t>>
   select_segments_for_gc() {
+    debug("free_segments = " + std::to_string(free_segments_));
     if (free_segments_ >= kFreeSegmentsLowerbound)
       return {};
     auto lock = std::shared_lock(lock_seg_status_);
@@ -202,6 +203,7 @@ public:
     auto seg_buf = Disk::align_alloc(kSegmentSize);
     auto summary = reinterpret_cast<SegmentSummary *>(seg_buf);
     for (auto seg_idx : candidate_seg_indices) {
+      debug("seg_idx = " + std::to_string(seg_idx));
       auto addr = kCRSize + seg_idx * kSegmentSize;
       disk_->read(seg_buf, addr, kSummarySize);
       summary->for_each_entry([&](const uint32_t addr, const uint32_t inode_idx,
@@ -232,12 +234,15 @@ public:
 
   void flush() {
     auto [buf, offset, occupied_bytes] = builder_->build();
+    if (occupied_bytes == 0)
+      return;
     auto idx = (offset - kCRSize) / kSegmentSize;
     seg_status_[idx].occupied_bytes = occupied_bytes;
     seg_status_[idx].flushing_version = imap_->version();
     disk_->write(buf, offset, kSegmentSize);
     auto next_segment_addr = find_next_empty(offset + kSegmentSize);
     builder_->seek(next_segment_addr);
+    free_segments_ -= 1;
   }
 
   template <typename obj_t> uint32_t push(obj_t obj, const uint32_t old_addr) {

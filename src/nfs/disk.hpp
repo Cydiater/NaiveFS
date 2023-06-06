@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cerrno>
 #include <cstring>
 #include <string>
 #include <unistd.h>
@@ -43,9 +44,8 @@ class FileDisk {
 
 public:
   FileDisk(const char *_path, const uint32_t capacity) {
-    debug("Disk " + std::string(_path));
     fd = open(_path, O_CREAT | O_DIRECT | O_NOATIME | O_RDWR, 0666);
-    debug(strerror(errno));
+    assert(errno == 0);
     assert(fd != -1);
     debug("Disk size " + std::to_string(capacity * 1024 * 1024));
     auto res = ftruncate(fd, capacity * 1024 * 1024);

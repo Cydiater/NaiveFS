@@ -37,7 +37,7 @@ class NaiveFS {
   std::unique_ptr<std::thread> ckpt_;
 
   void flush_cr() {
-    debug("flushing checkpoint region");
+    debug("BACKGROUND: flushing checkpoint region");
     auto lock = std::unique_lock(lock_flushing_cr_);
     seg_mgr_->flush();
     const char *imap_buf = imap_->get_buf();
@@ -66,8 +66,11 @@ class NaiveFS {
   void gc_background() {
     while (true) {
       std::this_thread::sleep_for(std::chrono::seconds(kGCCheckSeconds));
+      debug("BACKGROUND: checking for gc");
       const auto [ds_by_inode_idx, addr_by_inode_idx] =
           seg_mgr_->select_segments_for_gc();
+      debug("ds_by_inode_idx of size " + std::to_string(ds_by_inode_idx.size()));
+      debug("addr_by_inode_idx of size " + std::to_string(addr_by_inode_idx.size()));
       for (const auto &[inode_idx, addr_and_code_list] : ds_by_inode_idx) {
         auto inode = get_inode(inode_idx);
         auto ret = inode->rewrite_if_hit(addr_and_code_list);
@@ -127,7 +130,7 @@ public:
 
   ~NaiveFS() { flush_cr(); }
 
-  uint32_t open(const char *path, const int flags) {
+  uint32_t open(const char *path, const int) {
     auto lock = std::shared_lock(lock_flushing_cr_);
     auto path_components = parse_path_components(path);
     assert(path_components.size() >= 1);
