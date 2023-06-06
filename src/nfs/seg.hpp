@@ -63,6 +63,7 @@ public:
   ~SegmentBuilder() { free(buf_); }
 
   uint32_t imap_size() const { return imap_.size() * 8; }
+  uint32_t get_cursor() const { return cursor_; }
 
   void seek(const uint32_t cursor) {
     debug("SegmentBuidler: seek to " + std::to_string(cursor));
@@ -260,19 +261,22 @@ public:
     free_segments_ -= 1;
   }
 
+  void discard(const uint32_t addr, const uint32_t size) {
+    auto idx = addr2segidx(addr);
+    if (addr2segidx(builder_->get_cursor()) == idx)
+      return;
+    seg_status_[idx].occupied_bytes -= size;
+    if (seg_status_[idx].occupied_bytes == 0) {
+      free_segments_ += 1;
+    }
+  }
+
   template <typename obj_t> uint32_t push(obj_t obj, const uint32_t old_addr) {
     auto lock = std::unique_lock(lock_seg_status_);
     if (old_addr == DiskInode::INVALID_ADDR)
       return push(obj);
-    auto idx = addr2segidx(old_addr);
     auto new_addr = push(obj);
-    if (addr2segidx(new_addr) == idx)
-      return new_addr;
-    assert(seg_status_[idx].occupied_bytes >= get_size(std::get<0>(obj)));
-    seg_status_[idx].occupied_bytes -= get_size(std::get<0>(obj));
-    if (seg_status_[idx].occupied_bytes == 0) {
-      free_segments_ += 1;
-    }
+    discard(old_addr, get_size(std::get<0>(obj)));
     return new_addr;
   }
 

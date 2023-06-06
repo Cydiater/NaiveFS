@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <fcntl.h>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -134,7 +135,17 @@ public:
 
   ~NaiveFS() { flush_cr(); }
 
-  uint32_t open(const char *path, const int) {
+  void truncate(const uint32_t fd, const uint32_t size) {
+    auto inode_idx = fd_mgr_->get(fd);
+    auto dinode_addr = imap_->get(inode_idx);
+    auto inode = get_inode(inode_idx);
+    auto dinode = inode->truncate(size);
+    auto addr =
+        seg_mgr_->push(std::make_pair(dinode.get(), inode_idx), dinode_addr);
+    imap_->update(inode_idx, addr);
+  }
+
+  uint32_t open(const char *path, const int flags) {
     auto lock = std::shared_lock(lock_flushing_cr_);
     auto path_components = parse_path_components(path);
     assert(path_components.size() >= 1);
@@ -148,6 +159,9 @@ public:
     if (maybe_this_inode_idx.has_value()) {
       auto this_inode_idx = maybe_this_inode_idx.value();
       auto fd = fd_mgr_->allocate(this_inode_idx);
+      if (flags & O_TRUNC) {
+        truncate(fd, 0);
+      }
       return fd;
     }
     auto this_disk_inode = DiskInode::make_file();

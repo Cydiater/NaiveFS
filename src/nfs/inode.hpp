@@ -268,6 +268,22 @@ public:
     return ret;
   }
 
+  std::unique_ptr<DiskInode> truncate(const uint32_t size) {
+    debug("Inode[" + std::to_string(inode_idx_) + "]->truncate(" +
+          std::to_string(size) + ")");
+    for_each_block(size, disk_inode_->size - size,
+                   [this](const uint32_t addr, const uint32_t this_offset,
+                          const uint32_t, const uint32_t) {
+                     if (this_offset != 0)
+                       return addr;
+                     seg_->discard(addr, kBlockSize);
+                     return DiskInode::INVALID_ADDR;
+                   });
+    dirty_ = true;
+    disk_inode_->size = size;
+    return downgrade();
+  }
+
   std::unique_ptr<DiskInode> rewrite_if_hit(
       const std::vector<std::pair<uint32_t, uint32_t>> &addr_and_code_list) {
     for (const auto &[addr, code] : addr_and_code_list) {
