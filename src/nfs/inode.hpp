@@ -27,8 +27,6 @@ class Inode {
   uint32_t indirect2_addr = DiskInode::INVALID_ADDR;
 
   void fetch_indirect1(const uint32_t idx, const uint32_t addr) {
-    debug("fetch_indirect1(idx = " + std::to_string(idx) +
-          ", addr = " + std::to_string(addr) + ")");
     // 当前 indirect1 和目标一致，返回
     if (indirect1_addr == addr)
       return;
@@ -36,7 +34,8 @@ class Inode {
     if (dirty_ && indirect1_addr != DiskInode::INVALID_ADDR) {
       auto new_addr = seg_->push(
           std::make_tuple(reinterpret_cast<char *>(indirect1), inode_idx_,
-                          DiskInode::encode(indirect1_idx)));
+                          DiskInode::encode(indirect1_idx)),
+          indirect1_addr);
       if (indirect1_idx == kInodeDirectCnt)
         disk_inode_->indirect1 = new_addr;
       else
@@ -58,14 +57,13 @@ class Inode {
   };
 
   void fetch_indirect2(const uint32_t idx, const uint32_t addr) {
-    debug("fetch_indirect2(idx = " + std::to_string(idx) +
-          ", addr = " + std::to_string(addr) + ")");
     if (indirect2_addr == addr)
       return;
     if (dirty_ && indirect2_addr != DiskInode::INVALID_ADDR) {
       auto new_addr = seg_->push(
           std::make_tuple(reinterpret_cast<char *>(indirect2), inode_idx_,
-                          DiskInode::encode(indirect1_idx, indirect2_idx)));
+                          DiskInode::encode(indirect1_idx, indirect2_idx)),
+          indirect2_addr);
       indirect1[indirect2_idx] = new_addr;
       std::memset(indirect2, 0, kBlockSize);
     }
@@ -297,7 +295,7 @@ public:
   }
 
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
-    debug("Inode[" + std::to_string(inode_idx_) + "] write(offset = " +
+    debug("Inode[" + std::to_string(inode_idx_) + "]->write(offset = " +
           std::to_string(offset) + ", " + std::to_string(size) + ")");
     assert(offset <= disk_inode_->size);
     for_each_block(
@@ -330,8 +328,8 @@ public:
   }
 
   uint32_t read(char *buf, uint32_t offset, uint32_t size) {
-    debug("Inode[" + std::to_string(inode_idx_) + "] read(offset = " +
-          std::to_string(offset) + ", " + std::to_string(size) + ")");
+    debug("Inode[" + std::to_string(inode_idx_) + "]->read(offset = " +
+          std::to_string(offset) + ", size = " + std::to_string(size) + ")");
     if (offset >= disk_inode_->size)
       return 0;
     uint32_t actual_read = 0;
@@ -340,6 +338,9 @@ public:
                    [&buf, &actual_read,
                     this](const uint32_t addr, const uint32_t this_offset,
                           const uint32_t this_size, const uint32_t) {
+                     debug("for_each_block(addr = " + std::to_string(addr) +
+                           ", this_offset = " + std::to_string(this_offset) +
+                           ", this_size = " + std::to_string(this_size) + ")");
                      seg_->read(buf, addr + this_offset, this_size);
                      buf += this_size;
                      actual_read += this_size;

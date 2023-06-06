@@ -65,6 +65,11 @@ public:
   uint32_t imap_size() const { return imap_.size() * 8; }
   uint32_t get_cursor() const { return cursor_; }
 
+  void discard(const uint32_t size) {
+    assert(size <= occupied_bytes_);
+    occupied_bytes_ -= size;
+  }
+
   void seek(const uint32_t cursor) {
     debug("SegmentBuidler: seek to " + std::to_string(cursor));
     offset_ = kSummarySize;
@@ -94,6 +99,7 @@ public:
     summary_->entries[block_cnt_][0] = ret;
     summary_->entries[block_cnt_][1] = std::get<1>(block);
     summary_->entries[block_cnt_][2] = std::get<2>(block);
+    block_cnt_ += 1;
     debug("SegmentsManager: push block(inode_idx = " +
           std::to_string(std::get<1>(block)) + ", code = " +
           std::to_string(std::get<2>(block)) + ") at " + std::to_string(ret));
@@ -191,6 +197,8 @@ public:
     };
     std::set<uint32_t, decltype(cmp)> heap(cmp);
     for (uint32_t i = 0; i < kMaxSegments; i++) {
+      if (i == builder_->get_cursor())
+        continue;
       if (seg_status_[i].occupied_bytes == 0)
         continue;
       heap.insert(i);
@@ -217,7 +225,7 @@ public:
       auto addr = kCRSize + seg_idx * kSegmentSize;
       disk_->read(seg_buf, addr, kSummarySize);
       // 跳过空闲空间过小的
-      if (summary->total_bytes_ - seg_status_[seg_idx].occupied_bytes <=
+      if (kSegmentSize - kSummarySize - seg_status_[seg_idx].occupied_bytes <=
           kBlockSize)
         continue;
       summary->for_each_entry([&](const uint32_t addr, const uint32_t inode_idx,
@@ -261,8 +269,10 @@ public:
 
   void discard(const uint32_t addr, const uint32_t size) {
     auto idx = addr2segidx(addr);
-    if (addr2segidx(builder_->get_cursor()) == idx)
+    if (addr2segidx(builder_->get_cursor()) == idx) {
+      builder_->discard(size);
       return;
+    }
     assert(size <= seg_status_[idx].occupied_bytes);
     seg_status_[idx].occupied_bytes -= size;
     if (seg_status_[idx].occupied_bytes == 0) {
@@ -272,7 +282,8 @@ public:
 
   template <typename obj_t> uint32_t push(obj_t obj, const uint32_t old_addr) {
     auto lock = std::unique_lock(lock_seg_status_);
-    if (old_addr == DiskInode::INVALID_ADDR)
+    if (old_addr == DiskInode::INVALID_ADDR ||
+        old_addr == DiskInode::TEMPORARY_ADDR)
       return push(obj);
     auto new_addr = push(obj);
     discard(old_addr, get_size(std::get<0>(obj)));
