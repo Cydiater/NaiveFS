@@ -27,7 +27,8 @@ struct SegmentSummary {
   static constexpr uint32_t MAX_ENTRIES = kSummarySize / 12 - 1;
 
   uint32_t len_imap_;
-  uint32_t _pad[2];
+  uint32_t total_bytes_;
+  uint32_t _pad;
   uint32_t entries[MAX_ENTRIES][3];
 
   void for_each_entry(
@@ -120,6 +121,7 @@ public:
     auto ptr = buf_ + kSegmentSize;
     uint32_t len = imap_.size();
     summary_->len_imap_ = len;
+    summary_->total_bytes_ = occupied_bytes_;
     for (uint32_t i = 0; i < len; i++) {
       ptr -= 8;
       std::memcpy(ptr, &imap_[i].first, 4);
@@ -174,7 +176,7 @@ public:
   std::pair<std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>,
             std::map<uint32_t, uint32_t>>
   select_segments_for_gc() {
-    debug("free_segments = " + std::to_string(free_segments_));
+    debug("\tfree_segments = " + std::to_string(free_segments_));
     if (free_segments_ >= kFreeSegmentsLowerbound)
       return {};
     auto lock = std::shared_lock(lock_seg_status_);
@@ -192,10 +194,22 @@ public:
     };
     std::set<uint32_t, decltype(cmp)> heap(cmp);
     for (uint32_t i = 0; i < kMaxSegments; i++) {
+      if (seg_status_[i].occupied_bytes == 0)
+        continue;
       heap.insert(i);
       if (heap.size() > kNumMergingSegments)
         heap.erase(--heap.end());
     }
+#ifndef NDEBUG
+    std::string msg = "\tstatus of the selected segments: ";
+    for (const auto seg_idx : heap) {
+      msg += "[idx = " + std::to_string(seg_idx) + ", version = " +
+             std::to_string(seg_status_[seg_idx].flushing_version) +
+             ", occupied_bytes = " +
+             std::to_string(seg_status_[seg_idx].occupied_bytes) + "] ";
+    }
+    debug(msg);
+#endif
     std::map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>>
         ds_by_inode_idx;
     std::map<uint32_t, uint32_t> addr_by_inode_idx;
@@ -203,13 +217,14 @@ public:
     auto seg_buf = Disk::align_alloc(kSegmentSize);
     auto summary = reinterpret_cast<SegmentSummary *>(seg_buf);
     for (auto seg_idx : candidate_seg_indices) {
-      debug("seg_idx = " + std::to_string(seg_idx));
       auto addr = kCRSize + seg_idx * kSegmentSize;
       disk_->read(seg_buf, addr, kSummarySize);
       summary->for_each_entry([&](const uint32_t addr, const uint32_t inode_idx,
                                   const uint32_t code) {
         ds_by_inode_idx[inode_idx].push_back({addr, code});
       });
+      if (summary->total_bytes_ == seg_status_[seg_idx].occupied_bytes)
+        continue;
       auto imap_len = summary->len_imap_;
       disk_->nread(seg_buf, addr + kSegmentSize - imap_len * 8, imap_len * 8);
       for (uint32_t i = 0; i < imap_len; i++) {

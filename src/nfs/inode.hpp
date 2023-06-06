@@ -240,6 +240,8 @@ class Inode {
   }
 
   void rewrite(const uint32_t addr, const uint32_t code) {
+    debug("Inode[" + std::to_string(inode_idx_) + "]->rewrite(addr = " +
+          std::to_string(addr) + ", code = " + std::to_string(code) + ")");
     auto buf = Disk::align_alloc(kBlockSize);
     seg_->read(buf, addr, kBlockSize);
     auto new_addr = seg_->push(std::make_tuple(buf, inode_idx_, code), addr);
@@ -313,8 +315,8 @@ public:
   }
 
   uint32_t read(char *buf, uint32_t offset, uint32_t size) {
-    debug("Inode read " + std::to_string(offset) + " " + std::to_string(size) +
-          " " + std::to_string(disk_inode_->size));
+    debug("Inode[" + std::to_string(inode_idx_) + "] read(offset = " +
+          std::to_string(offset) + ", " + std::to_string(size) + ")");
     if (offset >= disk_inode_->size)
       return 0;
     uint32_t actual_read = 0;

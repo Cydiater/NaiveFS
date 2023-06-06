@@ -20,6 +20,12 @@ cat 456
 ls -x
 rm 123
 ls -x
+
+cp ../../scripts/4096B.file foo
+diff foo ../../scripts/4096B.file
+echo hello > foo
+cat foo
+
 cp ../../scripts/64MB.file foo
 diff foo ../../scripts/64MB.file
 

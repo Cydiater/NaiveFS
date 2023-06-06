@@ -69,8 +69,10 @@ class NaiveFS {
       debug("BACKGROUND: checking for gc");
       const auto [ds_by_inode_idx, addr_by_inode_idx] =
           seg_mgr_->select_segments_for_gc();
-      debug("ds_by_inode_idx of size " + std::to_string(ds_by_inode_idx.size()));
-      debug("addr_by_inode_idx of size " + std::to_string(addr_by_inode_idx.size()));
+      debug("\tds_by_inode_idx of size " +
+            std::to_string(ds_by_inode_idx.size()) +
+            ", addr_by_inode_idx of size " +
+            std::to_string(addr_by_inode_idx.size()));
       for (const auto &[inode_idx, addr_and_code_list] : ds_by_inode_idx) {
         auto inode = get_inode(inode_idx);
         auto ret = inode->rewrite_if_hit(addr_and_code_list);
@@ -83,6 +85,8 @@ class NaiveFS {
       for (const auto &[inode_idx, inode_addr] : addr_by_inode_idx) {
         if (inode_addr != imap_->get(inode_idx))
           continue;
+        debug("update inode(" + std::to_string(inode_idx) +
+              ", inode_addr = " + std::to_string(inode_addr) + ")");
         auto inode = get_diskinode(inode_idx);
         auto addr =
             seg_mgr_->push(std::make_pair(inode.get(), inode_idx), inode_addr);
