@@ -39,6 +39,13 @@ cat foo
 
 cp ../../scripts/64MB.file foo
 diff foo ../../scripts/64MB.file
+mv foo bar
+diff bar ../../scripts/64MB.file
+mkdir dir
+mv bar dir/bar
+diff dir/bar ../../scripts/64MB.file
+ls -x
+ls -x dir
 
 if ps -p $NFS_PID > /dev/null; then
    kill -9 $NFS_PID
