@@ -31,6 +31,18 @@ inline int fsync(const char *, int, struct fuse_file_info *) {
   return 0;
 }
 
+inline int rename(const char *old_path, const char *new_path,
+                  unsigned int flags) {
+  try {
+    nfs.rename(old_path, new_path, flags);
+  } catch (const NoEntry &e) {
+    return -ENOENT;
+  } catch (const DuplicateEntry &e) {
+    return -EEXIST;
+  }
+  return 0;
+}
+
 inline int truncate(const char *path, off_t size, struct fuse_file_info *fi) {
   const auto inode_idx = get_inode_idx(path, fi);
   nfs.truncate(inode_idx, size);
