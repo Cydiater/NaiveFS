@@ -21,6 +21,7 @@ fuse_operations bind_ops() {
       .access = vfs::access,
       .create = vfs::create,
       .utimens = vfs::utimens,
+      .mkdir=vfs::mkdir,
   };
   return nfs_op;
 }

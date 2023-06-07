@@ -89,6 +89,31 @@ inline int unlink(const char *path) {
   return 0;
 }
 
+inline int mkdir(const char *path,mode_t mode)
+{
+  std::string pathname(path);
+  std::vector<std::string> components;
+  size_t start=0,end=0;
+
+  //解析路径
+  end=pathname.find('/',start);
+  while (end!=std::string::npos)
+  {
+    components.emplace_back(pathname.substr(start,end-start));
+    start=end+1;
+    end=pathname.find('/',start);
+  }
+  components.emplace_back(pathname.substr(start));
+  //父目录
+  bool first=true;
+  for (const auto &component : components) {
+    if (component.empty()) continue;
+    parent->add_dir(component);
+  }
+
+  return 0;
+}
+
 inline int readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t,
                    fuse_file_info *, fuse_readdir_flags) {
   auto names = nfs.readdir(path);
