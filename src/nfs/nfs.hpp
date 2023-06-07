@@ -166,8 +166,7 @@ public:
     imap_->update(parent_inode_idx, parent_dinode_addr);
   }
 
-  void truncate(const uint32_t fd, const uint32_t size) {
-    auto inode_idx = fd_mgr_->get(fd);
+  void truncate(const uint32_t inode_idx, const uint32_t size) {
     auto dinode_addr = imap_->get(inode_idx);
     auto inode = get_inode(inode_idx);
     auto dinode = inode->truncate(size);
@@ -191,7 +190,7 @@ public:
       auto this_inode_idx = maybe_this_inode_idx.value();
       auto fd = fd_mgr_->allocate(this_inode_idx);
       if (flags & O_TRUNC) {
-        truncate(fd, 0);
+        truncate(this_inode_idx, 0);
       }
       return fd;
     }
