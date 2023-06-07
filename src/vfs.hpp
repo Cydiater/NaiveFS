@@ -26,8 +26,8 @@ inline uint32_t get_inode_idx(const char *path, fuse_file_info *fi) {
   return nfs.get_inode_idx(path);
 }
 
-inline int fsync(const char *path, int datasync, struct fuse_file_info *fi) {
-  // todo
+inline int fsync(const char *, int, struct fuse_file_info *) {
+  nfs.fsync();
   return 0;
 }
 
@@ -71,6 +71,26 @@ inline int write(const char *path, const char *buf, size_t size, off_t offset,
 inline int access(const char *, int) {
   // todo: add check here
   return F_OK;
+}
+
+inline int rmdir(const char *path) {
+  try {
+    nfs.unlink(path);
+  } catch (const NoEntry &e) {
+    return -ENOENT;
+  }
+  return 0;
+}
+
+inline int mkdir(const char *path, const mode_t mode) {
+  try {
+    nfs.mkdir(path, mode);
+  } catch (const NoEntry &e) {
+    return -ENOENT;
+  } catch (const DuplicateEntry &e) {
+    return -EEXIST;
+  }
+  return 0;
 }
 
 inline int read(const char *, char *buf, size_t size, off_t offset,
