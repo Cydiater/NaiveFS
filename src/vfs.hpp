@@ -26,8 +26,8 @@ inline uint32_t get_inode_idx(const char *path, fuse_file_info *fi) {
   return nfs.get_inode_idx(path);
 }
 
-inline int fsync(const char *path, int datasync, struct fuse_file_info *fi) {
-  // todo
+inline int fsync(const char *, int, struct fuse_file_info *) {
+  nfs.fsync();
   return 0;
 }
 

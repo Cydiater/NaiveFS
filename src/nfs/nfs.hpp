@@ -140,6 +140,10 @@ public:
 
   ~NaiveFS() { flush_cr(); }
 
+  void fsync() {
+    flush_cr();
+  }
+
   void truncate(const uint32_t fd, const uint32_t size) {
     auto inode_idx = fd_mgr_->get(fd);
     auto dinode_addr = imap_->get(inode_idx);
