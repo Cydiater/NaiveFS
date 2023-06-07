@@ -338,7 +338,7 @@ public:
 
   std::unique_ptr<DiskInode> write(char *buf, uint32_t offset, uint32_t size) {
     debug("Inode[" + std::to_string(inode_idx_) + "]->write(offset = " +
-          std::to_string(offset) + ", " + std::to_string(size) + ")");
+          std::to_string(offset) + ", size = " + std::to_string(size) + ")");
     assert(offset <= disk_inode_->size);
     for_each_block(
         offset, size,
@@ -349,8 +349,14 @@ public:
                 ", this_size = " + std::to_string(this_size) + ")"); */
           if (this_size == kBlockSize) {
             assert(this_offset == 0);
-            auto new_addr =
-                seg_->push(std::make_tuple(buf, inode_idx_, this_code), addr);
+            uint32_t new_addr;
+            if (addr == DiskInode::INVALID_ADDR) {
+              new_addr =
+                  seg_->push(std::make_tuple(buf, inode_idx_, this_code));
+            } else {
+              new_addr =
+                  seg_->push(std::make_tuple(buf, inode_idx_, this_code), addr);
+            }
             buf += kBlockSize;
             return new_addr;
           }
@@ -358,8 +364,14 @@ public:
           if (addr != DiskInode::INVALID_ADDR)
             seg_->read(this_buf, addr, kBlockSize);
           std::memcpy(this_buf + this_offset, buf, this_size);
-          auto new_addr = seg_->push(
-              std::make_tuple(this_buf, inode_idx_, this_code), addr);
+          uint32_t new_addr;
+          if (addr == DiskInode::INVALID_ADDR) {
+            new_addr =
+                seg_->push(std::make_tuple(this_buf, inode_idx_, this_code));
+          } else {
+            new_addr = seg_->push(
+                std::make_tuple(this_buf, inode_idx_, this_code), addr);
+          }
           delete[] this_buf;
           buf += this_size;
           return new_addr;

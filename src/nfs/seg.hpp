@@ -158,13 +158,13 @@ class SegmentsManager {
 
   uint32_t find_next_empty(uint32_t cursor) {
     while (true) {
+      if (cursor + kSegmentSize > disk_->end() - kCRSize)
+        cursor = kCRSize;
       auto idx = (cursor - kCRSize) / kSegmentSize;
       if (seg_status_[idx].occupied_bytes == 0) {
         return cursor;
       }
       cursor += kSegmentSize;
-      if (cursor + kSegmentSize > disk_->end() - kCRSize)
-        cursor = kCRSize;
     }
   }
 
@@ -267,6 +267,11 @@ public:
   const char *get_buf() { return reinterpret_cast<const char *>(seg_status_); }
 
   static uint32_t addr2segidx(const uint32_t addr) {
+#ifndef NDEBUG
+    if (addr >= kDiskCapacityMB * 1024 * 1024 - kCRSize) {
+      debug("failed addr = " + std::to_string(addr));
+    }
+#endif
     assert(addr >= kCRSize);
     assert(addr < kDiskCapacityMB * 1024 * 1024 - kCRSize);
     return (addr - kCRSize) / kSegmentSize;
@@ -296,9 +301,9 @@ public:
     auto lock = std::unique_lock(lock_seg_status_);
 #ifndef NDEBUG
     discarded.insert(addr);
+    debug("SegmentsManager: discard(addr = " + std::to_string(addr) +
+          ", size = " + std::to_string(size) + ")");
 #endif
-    /*debug("SegmentsManager: discard(addr = " + std::to_string(addr) + ", size
-     * = " + std::to_string(size) + ")"); */
     auto idx = addr2segidx(addr);
     if (addr2segidx(builder_->get_cursor()) == idx) {
       builder_->discard(size);
