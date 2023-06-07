@@ -140,8 +140,30 @@ public:
 
   ~NaiveFS() { flush_cr(); }
 
-  void fsync() {
-    flush_cr();
+  void fsync() { flush_cr(); }
+
+  void mkdir(const char *path, const uint32_t) {
+    auto lock = std::shared_lock(lock_flushing_cr_);
+    auto path_components = parse_path_components(path);
+    auto name = path_components.back();
+    path_components.pop_back();
+    auto parent_inode_idx =
+        get_inode_idx(join_path_components(path_components).c_str());
+    auto parent_dinode_addr = imap_->get(parent_inode_idx);
+    auto parent_inode = get_inode(parent_inode_idx);
+    if (parent_inode->find_entry(name) != std::nullopt) {
+      throw DuplicateEntry();
+    }
+    auto this_disk_inode = DiskInode::make_dir();
+    auto this_inode_idx = id_mgr_->allocate();
+    auto this_dinode_addr =
+        seg_mgr_->push(std::make_pair(this_disk_inode.get(), this_inode_idx));
+    imap_->update(this_inode_idx, this_dinode_addr);
+    auto parent_disk_inode = parent_inode->push(name, this_inode_idx);
+    parent_dinode_addr = seg_mgr_->push(
+        std::make_pair(parent_disk_inode.get(), parent_inode_idx),
+        parent_dinode_addr);
+    imap_->update(parent_inode_idx, parent_dinode_addr);
   }
 
   void truncate(const uint32_t fd, const uint32_t size) {

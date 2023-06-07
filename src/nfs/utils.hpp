@@ -28,6 +28,11 @@ public:
   const char *what() { return "Disk sync failed"; }
 };
 
+class DuplicateEntry : public std::exception {
+public:
+  const char *what() { return "Duplicated entry"; }
+};
+
 inline std::pair<char *, uint32_t>
 make_one_dir_entry(const std::string &name, const uint32_t inode_idx) {
   uint32_t len = name.length();

@@ -73,6 +73,17 @@ inline int access(const char *, int) {
   return F_OK;
 }
 
+inline int mkdir(const char *path, const mode_t mode) {
+  try {
+    nfs.mkdir(path, mode);
+  } catch (const NoEntry &e) {
+    return -ENOENT;
+  } catch (const DuplicateEntry &e) {
+    return -EEXIST;
+  }
+  return 0;
+}
+
 inline int read(const char *, char *buf, size_t size, off_t offset,
                 struct fuse_file_info *fi) {
   debug("FILE read: " + std::to_string(offset));
