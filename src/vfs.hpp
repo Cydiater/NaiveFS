@@ -73,6 +73,15 @@ inline int access(const char *, int) {
   return F_OK;
 }
 
+inline int rmdir(const char *path) {
+  try {
+    nfs.unlink(path);
+  } catch (const NoEntry &e) {
+    return -ENOENT;
+  }
+  return 0;
+}
+
 inline int mkdir(const char *path, const mode_t mode) {
   try {
     nfs.mkdir(path, mode);

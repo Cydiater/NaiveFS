@@ -21,6 +21,17 @@ ls -x
 rm 123
 ls -x
 
+mkdir dir1
+mkdir dir2
+cd dir1
+touch foo
+rm -r ../dir2
+cp ../../../scripts/64MB.file foo
+cd ..
+diff ../../scripts/64MB.file dir1/foo
+ls -x
+rm -r dir1
+
 cp ../../scripts/4096B.file foo
 diff foo ../../scripts/4096B.file
 echo hello > foo
