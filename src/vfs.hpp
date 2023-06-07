@@ -78,7 +78,7 @@ inline int utimens(const char *path, const struct timespec tv[2],
   return 0;
 }
 
-inline int write(const char *path, const char *buf, size_t size, off_t offset,
+inline int write(const char *, const char *buf, size_t size, off_t offset,
                  struct fuse_file_info *fi) {
   debug("FILE write: " + std::to_string(offset));
   char *tmp_buf = (char *)buf;

@@ -420,6 +420,8 @@ public:
   }
 
   std::unique_ptr<DiskInode> erase_entry(const std::string &name) {
+    debug("Inode[" + std::to_string(inode_idx_) +
+          "]->erase_entry(name = " + name + ")");
     std::unique_ptr<DiskInode> ret = nullptr;
     for_each_entry_once([this, &name, &ret](const std::string &this_name,
                                             const uint32_t this_inode_idx,
