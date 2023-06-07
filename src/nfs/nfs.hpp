@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <cstdio>
 #include <fcntl.h>
 #include <memory>
 #include <mutex>
@@ -141,6 +142,96 @@ public:
   ~NaiveFS() { flush_cr(); }
 
   void fsync() { flush_cr(); }
+
+  void rename_at_same_dir(const uint32_t parent_inode_idx,
+                          const std::string &old_name,
+                          const std::string &new_name, const uint32_t flags) {
+    auto parent_dinode_addr = imap_->get(parent_inode_idx);
+    auto parent_inode = get_inode(parent_inode_idx);
+    auto found = parent_inode->find_entry(old_name);
+    if (found == std::nullopt)
+      throw NoEntry();
+    auto old_inode_idx = found.value();
+    auto parent_disk_inode = parent_inode->erase_entry(old_name);
+    parent_inode = std::make_unique<Inode>(std::move(parent_disk_inode),
+                                           seg_mgr_.get(), parent_inode_idx);
+    found = parent_inode->find_entry(new_name);
+    if (found != std::nullopt) {
+      auto new_inode_idx = found.value();
+      parent_disk_inode = parent_inode->erase_entry(new_name);
+      parent_inode = std::make_unique<Inode>(std::move(parent_disk_inode),
+                                             seg_mgr_.get(), parent_inode_idx);
+      if (flags & RENAME_EXCHANGE) {
+        debug("rename with RENAME_EXCHANGE");
+        parent_disk_inode = parent_inode->push(old_name, new_inode_idx);
+        parent_inode = std::make_unique<Inode>(
+            std::move(parent_disk_inode), seg_mgr_.get(), parent_inode_idx);
+      }
+    }
+    parent_disk_inode = parent_inode->push(new_name, old_inode_idx);
+    parent_dinode_addr = seg_mgr_->push(
+        std::make_pair(parent_disk_inode.get(), parent_inode_idx),
+        parent_dinode_addr);
+    imap_->update(parent_inode_idx, parent_dinode_addr);
+  }
+
+  void rename(const char *old_path, const char *new_path,
+              const uint32_t flags) {
+    auto lock = std::shared_lock(lock_flushing_cr_);
+
+    auto old_path_components = parse_path_components(old_path);
+    auto old_name = old_path_components.back();
+    old_path_components.pop_back();
+    auto old_parent_inode_idx =
+        get_inode_idx(join_path_components(old_path_components).c_str());
+    auto old_parent_dinode_addr = imap_->get(old_parent_inode_idx);
+    auto old_parent_inode = get_inode(old_parent_inode_idx);
+    auto found = old_parent_inode->find_entry(old_name);
+    if (found == std::nullopt)
+      throw NoEntry();
+    auto old_inode_idx = found.value();
+
+    auto new_path_components = parse_path_components(new_path);
+    auto new_name = new_path_components.back();
+    new_path_components.pop_back();
+    auto new_parent_inode_idx =
+        get_inode_idx(join_path_components(new_path_components).c_str());
+    if (old_parent_inode_idx == new_parent_inode_idx) {
+      rename_at_same_dir(old_parent_inode_idx, old_name, new_name, flags);
+      return;
+    }
+    auto new_parent_dinode_addr = imap_->get(new_parent_inode_idx);
+    auto new_parent_inode = get_inode(new_parent_inode_idx);
+    found = new_parent_inode->find_entry(new_name);
+    if (found == std::nullopt) {
+      if (flags & RENAME_EXCHANGE)
+        throw NoEntry();
+    } else {
+      auto new_inode_idx = found.value();
+      auto new_parent_disk_inode = new_parent_inode->erase_entry(new_name);
+      new_parent_inode =
+          std::make_unique<Inode>(std::move(new_parent_disk_inode),
+                                  seg_mgr_.get(), new_parent_inode_idx);
+      if (flags & RENAME_EXCHANGE) {
+        auto old_parent_disk_inode =
+            old_parent_inode->push(old_name, new_inode_idx);
+        old_parent_inode =
+            std::make_unique<Inode>(std::move(old_parent_disk_inode),
+                                    seg_mgr_.get(), old_parent_inode_idx);
+      }
+    }
+    auto new_parent_disk_inode =
+        new_parent_inode->push(new_name, old_inode_idx);
+    new_parent_dinode_addr = seg_mgr_->push(
+        std::make_pair(new_parent_disk_inode.get(), new_parent_inode_idx),
+        new_parent_dinode_addr);
+    imap_->update(new_parent_inode_idx, new_parent_dinode_addr);
+    auto old_parent_disk_inode = old_parent_inode->erase_entry(old_name);
+    old_parent_dinode_addr = seg_mgr_->push(
+        std::make_pair(old_parent_disk_inode.get(), old_parent_inode_idx),
+        old_parent_dinode_addr);
+    imap_->update(old_parent_inode_idx, old_parent_dinode_addr);
+  }
 
   void mkdir(const char *path, const uint32_t) {
     auto lock = std::shared_lock(lock_flushing_cr_);
