@@ -31,6 +31,12 @@ inline int fsync(const char *, int, struct fuse_file_info *) {
   return 0;
 }
 
+inline int truncate(const char *path, off_t size, struct fuse_file_info *fi) {
+  const auto inode_idx = get_inode_idx(path, fi);
+  nfs.truncate(inode_idx, size);
+  return 0;
+}
+
 inline int open(const char *path, struct fuse_file_info *fi) {
   auto fd = nfs.open(path, fi->flags);
   fi->fh = fd;

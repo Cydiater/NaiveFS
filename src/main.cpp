@@ -15,6 +15,7 @@ fuse_operations bind_ops() {
       .mkdir = vfs::mkdir,
       .unlink = vfs::unlink,
       .rmdir = vfs::rmdir,
+      .truncate = vfs::truncate,
       .open = vfs::open,
       .read = vfs::read,
       .write = vfs::write,
